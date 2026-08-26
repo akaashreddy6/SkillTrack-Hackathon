@@ -1,6 +1,11 @@
 import { BrowserRouter, Routes, Route, Link } from "react-router-dom";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
+import Dashboard from "./pages/Dashboard";
+import Skills from "./pages/Skills";
+import Assessments from "./pages/Assessments";
+import Jobs from "./pages/Jobs";
+import Profile from "./pages/profile";
 import "./App.css";
 
 function Home() {
@@ -105,6 +110,11 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/skills" element={<Skills />} />
+        <Route path="/assessments" element={<Assessments />} />
+        <Route path="/jobs" element={<Jobs />} />
+        <Route path="/profile" element={<Profile />} />
       </Routes>
     </BrowserRouter>
   );

@@ -1,74 +1,72 @@
+import { DashboardHeader } from "../components/DashboardLayout";
+
+const profileStats = [
+  { label: "Career Goal", value: "Frontend Developer" },
+  { label: "Current Level", value: "Intermediate" },
+  { label: "Completed Tracks", value: "08" },
+  { label: "Mentor Sessions", value: "06" },
+];
+
+const achievements = [
+  "Completed React Fundamentals track",
+  "Improved JavaScript accuracy by 18%",
+  "Reached 82% skill readiness score",
+  "Applied to 9 opportunities this month",
+];
+
 function Profile() {
   return (
-    <div className="profile-page">
-      <div className="profile-container">
-        <div className="profile-header">
-          <span>STEP 1 OF 4</span>
-          <h1>Create Your Profile</h1>
-          <p>
-            Tell us about yourself so SkillTrack can personalize your
-            learning and career journey.
-          </p>
-        </div>
+    <div className="dashboard-page">
+      <DashboardHeader />
 
-        <div className="profile-card">
-          <div className="form-section">
-            <h2>Personal Information</h2>
+      <main className="dashboard-main dashboard-inner">
+        <section className="page-header">
+          <div>
+            <p className="eyebrow">PROFILE</p>
+            <h1>Student Profile</h1>
+          </div>
+        </section>
 
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Full Name</label>
-                <input type="text" placeholder="Enter your full name" />
-              </div>
+        <section className="profile-layout">
+          <div className="panel profile-summary">
+            <div className="profile-avatar">AS</div>
+            <h2>Alicia Stone</h2>
+            <p>Frontend learner focusing on React and design systems.</p>
 
-              <div className="form-group">
-                <label>Email Address</label>
-                <input type="email" placeholder="Enter your email" />
-              </div>
-
-              <div className="form-group">
-                <label>Phone Number</label>
-                <input type="tel" placeholder="Enter your phone number" />
-              </div>
-
-              <div className="form-group">
-                <label>Location</label>
-                <input type="text" placeholder="City / District" />
-              </div>
+            <div className="profile-contact">
+              <span>alicia.stone@email.com</span>
+              <span>Based in London, UK</span>
             </div>
           </div>
 
-          <div className="form-section">
-            <h2>Education & Career</h2>
+          <div className="panel profile-stats-panel">
+            <div className="panel-header">
+              <h2>Profile Details</h2>
+            </div>
 
-            <div className="form-grid">
-              <div className="form-group">
-                <label>Highest Qualification</label>
-                <select>
-                  <option>Select qualification</option>
-                  <option>10th</option>
-                  <option>12th</option>
-                  <option>Diploma</option>
-                  <option>Undergraduate</option>
-                  <option>Postgraduate</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label>Career Goal</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Full Stack Developer"
-                />
-              </div>
+            <div className="stat-grid">
+              {profileStats.map((item) => (
+                <div key={item.label} className="stat-item">
+                  <span>{item.label}</span>
+                  <strong>{item.value}</strong>
+                </div>
+              ))}
             </div>
           </div>
+        </section>
 
-          <button className="continue-button">
-            Continue to Skills →
-          </button>
-        </div>
-      </div>
+        <section className="panel panel-table">
+          <div className="panel-header">
+            <h2>Recent Achievements</h2>
+          </div>
+
+          <ul className="achievement-list">
+            {achievements.map((item) => (
+              <li key={item}>{item}</li>
+            ))}
+          </ul>
+        </section>
+      </main>
     </div>
   );
 }

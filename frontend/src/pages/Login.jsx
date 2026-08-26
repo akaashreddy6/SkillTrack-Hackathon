@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 
 function FormField({ label, type, name, value, placeholder, onChange, error }) {
   return (
@@ -50,6 +50,8 @@ function PasswordField({ label, name, value, placeholder, onChange, error, showP
 }
 
 function Login() {
+  const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
     email: "",
     password: "",
@@ -99,7 +101,8 @@ function Login() {
     }
 
     setErrors({});
-    setSubmitMessage("Sign in successful. Demo mode only — no backend connected yet.");
+    setSubmitMessage("");
+    navigate("/dashboard");
   };
 
   return (

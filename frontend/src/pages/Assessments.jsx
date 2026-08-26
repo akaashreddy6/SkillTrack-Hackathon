@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { DashboardHeader } from "../components/DashboardLayout";
 
 const assessments = [
@@ -22,6 +23,10 @@ function Assessments() {
         </section>
 
         <section className="panel panel-table">
+          <div className="assessment-launch">
+            <div><span className="section-kicker">NEXT ASSESSMENT</span><h2>JavaScript Logic Test</h2><p>10 questions · 12 minutes · Skill-gap report included</p></div>
+            <Link className="button button-primary" to="/assessments/javascript">Start assessment</Link>
+          </div>
           <div className="table-wrap">
             <table>
               <thead>

@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { DashboardHeader } from "../components/DashboardLayout";
 
 const jobs = [
@@ -63,9 +64,9 @@ function Jobs() {
                 ))}
               </div>
 
-              <button type="button" className="secondary-action full-width">
+              <Link to="/applications" className="secondary-action full-width">
                 View Job
-              </button>
+              </Link>
             </article>
           ))}
         </section>

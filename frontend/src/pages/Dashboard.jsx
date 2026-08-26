@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { DashboardHeader } from "../components/DashboardLayout";
 
 const skillProgress = [
@@ -71,9 +72,9 @@ function Dashboard() {
             </p>
           </div>
 
-          <button type="button" className="primary-dashboard-button">
+          <Link to="/learning" className="primary-dashboard-button">
             Continue Learning
-          </button>
+          </Link>
         </section>
 
         <section className="overview-grid">
@@ -119,9 +120,9 @@ function Dashboard() {
                     <span>{gap.current}</span>
                   </div>
                   <p>Target: {gap.target}</p>
-                  <button type="button" className="secondary-action">
+                    <Link to="/learning" className="secondary-action">
                     {gap.button}
-                  </button>
+                    </Link>
                 </div>
               ))}
             </div>
@@ -187,9 +188,9 @@ function Dashboard() {
                   ))}
                 </div>
 
-                <button type="button" className="secondary-action full-width">
+                <Link to="/jobs" className="secondary-action full-width">
                   View Job
-                </button>
+                </Link>
               </article>
             ))}
           </div>

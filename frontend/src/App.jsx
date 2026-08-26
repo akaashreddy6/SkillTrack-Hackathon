@@ -6,6 +6,11 @@ import Skills from "./pages/Skills";
 import Assessments from "./pages/Assessments";
 import Jobs from "./pages/Jobs";
 import Profile from "./pages/profile";
+import Learning from "./pages/Learning";
+import Applications from "./pages/Applications";
+import Certifications from "./pages/Certifications";
+import AssessmentFlow from "./pages/AssessmentFlow";
+import { AdminDashboard, EmployerDashboard } from "./pages/Workspaces";
 import "./App.css";
 
 function Home() {
@@ -115,6 +120,13 @@ function App() {
         <Route path="/assessments" element={<Assessments />} />
         <Route path="/jobs" element={<Jobs />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/learning" element={<Learning />} />
+        <Route path="/applications" element={<Applications />} />
+        <Route path="/certifications" element={<Certifications />} />
+        <Route path="/assessments/:id" element={<AssessmentFlow />} />
+        <Route path="/assessments/:id/results" element={<AssessmentFlow />} />
+        <Route path="/admin/*" element={<AdminDashboard />} />
+        <Route path="/employer/*" element={<EmployerDashboard />} />
       </Routes>
     </BrowserRouter>
   );

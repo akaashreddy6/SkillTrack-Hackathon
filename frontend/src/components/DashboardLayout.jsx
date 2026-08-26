@@ -7,7 +7,10 @@ export function DashboardHeader() {
     { label: "Dashboard", to: "/dashboard" },
     { label: "Skills", to: "/skills" },
     { label: "Assessments", to: "/assessments" },
+    { label: "Learning", to: "/learning" },
     { label: "Jobs", to: "/jobs" },
+    { label: "Applications", to: "/applications" },
+    { label: "Certifications", to: "/certifications" },
     { label: "Profile", to: "/profile" },
   ];
 

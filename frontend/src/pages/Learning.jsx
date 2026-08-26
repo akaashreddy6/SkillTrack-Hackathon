@@ -1,0 +1,9 @@
+import { useState } from "react";
+import { Link } from "react-router-dom";
+import { learningResources } from "../data/mockData";
+import { PageHeader, PlatformLayout, ProgressBar } from "../components/Platform";
+
+export default function Learning() {
+  const [started, setStarted] = useState(null);
+  return <PlatformLayout><PageHeader eyebrow="PERSONALISED LEARNING" title="Learning workspace" description="Target the gaps that matter most for your next opportunity." action={<Link className="primary-dashboard-button" to="/jobs">Explore matched jobs</Link>} /><section className="learning-banner"><div><span className="section-kicker">NEXT BEST ACTION</span><h2>Strengthen asynchronous JavaScript</h2><p>Your JavaScript score is 12 points below your target. A focused module can close the gap.</p></div><Link className="button button-primary" to="/assessments/javascript">Take re-assessment</Link></section><div className="section-title"><div><p className="eyebrow">RECOMMENDED FOR YOU</p><h2>Continue your progress</h2></div><span className="muted">3 active learning paths</span></div><section className="resource-grid">{learningResources.map((resource) => <article className="resource-card" key={resource.id}><div className="resource-top"><span className="resource-icon">{resource.skill.slice(0, 2).toUpperCase()}</span><span className="level-badge">{resource.level}</span></div><h3>{resource.title}</h3><p>{resource.description}</p><div className="resource-meta"><span>{resource.skill}</span><span>{resource.time}</span></div><ProgressBar value={resource.progress} /><div className="resource-bottom"><strong>{resource.progress}% complete</strong><button className="button button-secondary" onClick={() => setStarted(resource.id)}>{started === resource.id ? "In progress" : "Continue"}</button></div></article>)}</section></PlatformLayout>;
+}

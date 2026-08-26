@@ -1,0 +1,6 @@
+import { certifications } from "../data/mockData";
+import { PageHeader, PlatformLayout, StatusBadge } from "../components/Platform";
+
+export default function Certifications() {
+  return <PlatformLayout><PageHeader eyebrow="VERIFIED ACHIEVEMENTS" title="Certifications" description="A portable record of your verified learning outcomes." action={<button className="button button-primary">Download record</button>} /><section className="certification-intro"><div className="certificate-seal">ST</div><div><p className="eyebrow">SKILLTRACK RECORD</p><h2>3 certifications verified</h2><p>Share a trusted snapshot of your assessed capabilities with employers.</p></div></section><section className="cert-grid">{certifications.map((certificate) => <article className="certificate-card" key={certificate.name}><div className="certificate-top"><span className="certificate-mark">✓</span><StatusBadge>{certificate.status}</StatusBadge></div><h3>{certificate.name}</h3><div className="certificate-details"><span>Skill<strong>{certificate.skill}</strong></span><span>Score<strong>{certificate.score}</strong></span><span>Issued<strong>{certificate.date}</strong></span></div><button className="table-action">View certificate</button></article>)}</section></PlatformLayout>;
+}

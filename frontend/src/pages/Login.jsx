@@ -53,7 +53,7 @@ function PasswordField({ label, name, value, placeholder, onChange, error, showP
 function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signIn, isConfigured } = useAuth();
+const { signIn, refreshProfile, isConfigured } = useAuth();
 
   const [formData, setFormData] = useState({
     email: "",
@@ -106,9 +106,19 @@ function Login() {
     setErrors({});
     setSubmitMessage("");
     try {
-      const { user } = await signIn(formData.email.trim(), formData.password);
-      const destination = location.state?.from || "/dashboard";
-      navigate(user ? destination : "/dashboard", { replace: true });
+     const { user } = await signIn(formData.email.trim(), formData.password);
+
+if (user) {
+  const userProfile = await refreshProfile(user);
+
+  if (userProfile?.role === "employer") {
+    navigate("/employer", { replace: true });
+  } else if (userProfile?.role === "admin") {
+    navigate("/admin", { replace: true });
+  } else {
+    navigate(location.state?.from || "/dashboard", { replace: true });
+  }
+}
     } catch (error) {
       setSubmitMessage(error.message || "Unable to sign in. Please try again.");
     }

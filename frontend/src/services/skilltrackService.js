@@ -746,54 +746,80 @@ export const getAdminData = async () => {
   const client = requireClient();
 
   const [
-    profiles,
+    studentProfiles,
+    employerProfiles,
+    allProfiles,
     attempts,
     progress,
     jobs,
     applications,
+    jobSkills,
   ] = await Promise.all([
     read(
       client
         .from("profiles")
-        .select("id, role")
+        .select("id, profile_completion")
         .eq("role", "student")
+    ),
+
+    read(
+      client
+        .from("profiles")
+        .select("id")
+        .eq("role", "employer")
+    ),
+
+    read(
+      client
+        .from("profiles")
+        .select("id, role, profile_completion, created_at")
     ),
 
     read(
       client
         .from("assessment_attempts")
         .select(
-          "percentage, performance_level, assessments(title, skills(name))"
+          "id, user_id, percentage, performance_level, completed_at, assessments(title, skill_id, skills(id, name))"
         )
+        .order("completed_at", { ascending: false })
     ),
 
     read(
       client
         .from("skill_progress")
         .select(
-          "current_score, target_score, skills(name)"
+          "user_id, skill_id, current_score, target_score, gap_percentage, skills(id, name, category)"
         )
     ),
 
     read(
       client
         .from("jobs")
-        .select("id, status")
+        .select("id, employer_id, status, created_at")
     ),
 
     read(
       client
         .from("applications")
-        .select("id, status")
+        .select("id, job_id, user_id, status, applied_at, updated_at")
+    ),
+
+    read(
+      client
+        .from("job_skills")
+        .select("job_id, skill_id, minimum_score, skills(id, name)")
     ),
   ]);
 
   return {
-    profiles,
+    studentProfiles,
+    employerProfiles,
+    allProfiles,
     attempts,
     progress,
     jobs,
     applications,
+    jobSkills,
   };
 };
 

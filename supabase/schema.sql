@@ -93,8 +93,8 @@ drop trigger if exists profiles_completion on public.profiles;
 create trigger profiles_completion before insert or update on public.profiles for each row execute procedure public.calculate_profile_completion();
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$
 begin
-  insert into public.profiles (id, full_name, email)
-  values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', ''), new.email)
+  insert into public.profiles (id, full_name, email, role)
+  values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', ''), new.email, coalesce(new.raw_user_meta_data ->> 'role', 'student'))
   on conflict (id) do nothing;
   exception when others then
     raise warning 'Unable to create profile for auth user %: %', new.id, sqlerrm;

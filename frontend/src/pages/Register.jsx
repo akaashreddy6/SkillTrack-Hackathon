@@ -91,6 +91,8 @@ function Register() {
     type: "",
   });
 
+  const [submitting, setSubmitting] = useState(false);
+
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
 
@@ -183,14 +185,19 @@ function Register() {
       text: "",
       type: "",
     });
+    setSubmitting(true);
 
     try {
-      const { session } = await signUp({
-        fullName: formData.fullName.trim(),
-        email: formData.email.trim(),
-        password: formData.password,
-        role: formData.role,
+      const signupRequest = signUp({
+          fullName: formData.fullName.trim(),
+          email: formData.email.trim(),
+          password: formData.password,
+          role: formData.role,
+        });
+      const timeout = new Promise((_, reject) => {
+        window.setTimeout(() => reject(new Error("Signup request timed out. Check your Supabase configuration and network connection.")), 15000);
       });
+      const { session } = await Promise.race([signupRequest, timeout]);
 
       if (session) {
         if (formData.role === "employer") {
@@ -248,8 +255,18 @@ function Register() {
         text,
         type,
       });
+    } finally {
+      setSubmitting(false);
     }
   };
+
+  const passwordStrength = !formData.password
+    ? { label: "", value: 0 }
+    : formData.password.length < 8
+    ? { label: "Weak", value: 1 }
+    : !/[A-Z]/.test(formData.password) || !/[0-9]/.test(formData.password)
+    ? { label: "Fair", value: 2 }
+    : { label: "Strong", value: 3 };
 
   return (
     <div className="auth-page">
@@ -307,6 +324,13 @@ function Register() {
             showPassword={showPassword}
             setShowPassword={setShowPassword}
           />
+
+          {formData.password && (
+            <div className={`password-strength strength-${passwordStrength.value}`} aria-live="polite">
+              <span>Password strength: {passwordStrength.label}</span>
+              <span className="password-strength-track"><span /></span>
+            </div>
+          )}
 
           <PasswordField
             label="Confirm password"
@@ -400,8 +424,9 @@ function Register() {
           <button
             type="submit"
             className="auth-button"
+            disabled={submitting}
           >
-            Create Account
+            {submitting ? "Creating account..." : "Create Account"}
           </button>
         </form>
 

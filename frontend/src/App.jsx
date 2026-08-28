@@ -9,12 +9,13 @@ import Assessments from "./pages/Assessments";
 import Jobs from "./pages/Jobs";
 import Profile from "./pages/profile";
 import Learning from "./pages/Learning";
-import Applications from "./pages/Applications";
+import Applications, { StudentApplicationDetails } from "./pages/Applications";
 import Certifications from "./pages/Certifications";
 import AssessmentFlow from "./pages/AssessmentFlow";
 import Career from "./pages/Career";
 import Portfolio from "./pages/Portfolio";
-import { AdminDashboard, EmployerDashboard } from "./pages/Workspaces";
+import { AdminDashboard, AdminApplications, AdminJobs, AdminSkills, AdminUsers, AdminWorkforce, AdminSettings } from "./pages/admin/AdminPages";
+import { EmployerApplicationDetails, EmployerApplications, EmployerCandidateDetails, EmployerCandidates, EmployerDashboard, EmployerJobDetails, EmployerJobs, EmployerProfile, CreateJob } from "./pages/employer/EmployerPages";
 import { useAuth } from "./context/AuthContext";
 import { getDashboardData, getJobs } from "./services/skilltrackService";
 import "./App.css";
@@ -72,15 +73,32 @@ function App() {
           <Route path="/career" element={<Career />} />
           <Route path="/portfolio" element={<Portfolio />} />
           <Route path="/applications" element={<Applications />} />
+          <Route path="/applications/:id" element={<StudentApplicationDetails />} />
           <Route path="/certifications" element={<Certifications />} />
           <Route path="/assessments/:id" element={<AssessmentFlow />} />
           <Route path="/assessments/:id/results" element={<AssessmentFlow />} />
         </Route>
         <Route element={<ProtectedRoute role="admin" />}>
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/users" element={<AdminUsers />} />
+          <Route path="/admin/skills" element={<AdminSkills />} />
+          <Route path="/admin/jobs" element={<AdminJobs />} />
+          <Route path="/admin/applications" element={<AdminApplications />} />
+          <Route path="/admin/workforce" element={<AdminWorkforce />} />
+          <Route path="/admin/settings" element={<AdminSettings />} />
           <Route path="/admin/*" element={<AdminDashboard />} />
         </Route>
         <Route element={<ProtectedRoute role="employer" />}>
-          <Route path="/employer/*" element={<EmployerDashboard />} />
+          <Route path="/employer" element={<EmployerDashboard />} />
+          <Route path="/employer/jobs" element={<EmployerJobs />} />
+          <Route path="/employer/jobs/new" element={<CreateJob />} />
+          <Route path="/employer/jobs/:id/edit" element={<EmployerJobDetails edit />} />
+          <Route path="/employer/jobs/:id" element={<EmployerJobDetails />} />
+          <Route path="/employer/candidates" element={<EmployerCandidates />} />
+          <Route path="/employer/candidates/:id" element={<EmployerCandidateDetails />} />
+          <Route path="/employer/applications" element={<EmployerApplications />} />
+          <Route path="/employer/applications/:id" element={<EmployerApplicationDetails />} />
+          <Route path="/employer/profile" element={<EmployerProfile />} />
         </Route>
       </Routes>
     </BrowserRouter>

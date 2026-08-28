@@ -11,6 +11,7 @@ function JobDetails() {
   const [job, setJob] = useState(null);
   const [match, setMatch] = useState(null);
   const [applied, setApplied] = useState(false);
+  const [applicationStatus, setApplicationStatus] = useState("");
   const [state, setState] = useState({ loading: true, error: "", message: "" });
   useEffect(() => {
     let active = true;
@@ -18,12 +19,14 @@ function JobDetails() {
       if (!active) return;
       setJob(detail);
       setMatch(allMatches.find((item) => item.id === detail.id) || null);
-      setApplied(applications.some((application) => application.job_id === detail.id));
+      const existingApplication = applications.find((application) => application.job_id === detail.id);
+      setApplied(Boolean(existingApplication));
+      setApplicationStatus(existingApplication?.status || "");
     }).catch((error) => { if (active) setState((previous) => ({ ...previous, error: error.message || "Unable to load this job." })); }).finally(() => { if (active) setState((previous) => ({ ...previous, loading: false })); });
     return () => { active = false; };
   }, [id, user.id]);
   const apply = async () => {
-    if (applied) return;
+    if (applied || job.status !== "Active") return;
     try { await applyToJob(id, user.id); setApplied(true); setState((previous) => ({ ...previous, message: "Application submitted successfully." })); }
     catch (error) { setState((previous) => ({ ...previous, error: error.message || "Unable to submit application." })); }
   };
@@ -40,7 +43,7 @@ function JobDetails() {
         <h2>Your match</h2><div className="job-match-large"><strong>{result.match}%</strong><div><StatusBadge>{result.matchLabel}</StatusBadge><p>Based on your current skill progress.</p></div></div>
         <div className="match-columns"><div><h3>Matched skills</h3>{result.matchedSkills.length ? result.matchedSkills.map((item) => <p key={item.skill_id}>✓ {item.skills?.name} · {item.current}%</p>) : <p>No required skills currently meet the threshold.</p>}</div><div><h3>Skills to improve</h3>{result.missingSkills.length ? result.missingSkills.map((item) => <p key={item.skill_id}>! {item.skills?.name} · {item.current === null ? "Not assessed" : `${item.current}%`}</p>) : <p>All required skills meet the threshold.</p>}</div></div>
       </article>
-      <aside className="panel job-apply-panel"><span className="section-kicker">READY TO MOVE FORWARD?</span><h2>{result.match}% match</h2><p>Apply with your current profile and keep building your readiness through SkillTrack.</p><button className="button button-primary full-width" disabled={applied} onClick={apply}>{applied ? "Already Applied" : "Apply"}</button><button className="button button-secondary full-width" onClick={() => navigate(`/learning?skill=${result.missingSkills[0]?.skill_id || ""}`)}>Improve Skill</button>{state.message && <div className="auth-success data-feedback">{state.message}</div>}<Link className="back-link" to="/jobs">Back to jobs</Link></aside>
+      <aside className="panel job-apply-panel"><span className="section-kicker">READY TO MOVE FORWARD?</span><h2>{result.match}% match</h2><p>Apply with your current profile and keep building your readiness through SkillTrack.</p><button className="button button-primary full-width" disabled={applied || job.status !== "Active"} onClick={apply}>{job.status !== "Active" ? "Applications Closed" : applicationStatus === "Rejected" ? "Application Rejected" : applied ? "Already Applied" : "Apply"}</button><button className="button button-secondary full-width" onClick={() => navigate(`/learning?skill=${result.missingSkills[0]?.skill_id || ""}`)}>Improve Skill</button>{state.message && <div className="auth-success data-feedback">{state.message}</div>}<Link className="back-link" to="/jobs">Back to jobs</Link></aside>
     </section>
   </PlatformLayout>;
 }

@@ -6,6 +6,7 @@ export default function ProtectedRoute({ role }) {
   const location = useLocation();
   if (loading) return <div className="route-state">Loading your SkillTrack workspace...</div>;
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  if (role && !profile) return <div className="data-error">Your profile could not be loaded. Please refresh and try again.</div>;
   if (role && profile?.role !== role) return <Navigate to={profile?.role === "admin" ? "/admin" : profile?.role === "employer" ? "/employer" : "/dashboard"} replace />;
   return <Outlet />;
 }

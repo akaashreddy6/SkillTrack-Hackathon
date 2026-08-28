@@ -10,6 +10,17 @@ function requireClient() {
   return supabase;
 }
 
+function jobDescription(job) {
+  return [
+    job.description?.trim(),
+    job.responsibilities?.trim()
+      ? `Responsibilities:\n${job.responsibilities.trim()}`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 async function read(query) {
   const { data, error } = await query;
 
@@ -608,7 +619,7 @@ export const getApplications = async (
     requireClient()
       .from("applications")
       .select(
-        "*, jobs(title, company_name, location, employment_type, salary_range, job_skills(skill_id, minimum_score, skills(id, name)))"
+        "*, jobs(title, company_name, location, description, employment_type, salary_range, job_skills(skill_id, minimum_score, skills(id, name)))"
       )
       .eq("user_id", userId)
       .order("updated_at", {
@@ -755,36 +766,31 @@ export const getAdminData = async () => {
     read(
       client
         .from("profiles")
-        .select("id, role")
-        .eq("role", "student")
+        .select("id, full_name, email, role, profile_completion, created_at")
     ),
 
     read(
       client
         .from("assessment_attempts")
-        .select(
-          "percentage, performance_level, assessments(title, skills(name))"
-        )
+        .select("id, percentage, performance_level, completed_at, assessments(title, skill_id, skills(name))")
     ),
 
     read(
       client
         .from("skill_progress")
-        .select(
-          "current_score, target_score, skills(name)"
-        )
+        .select("user_id, current_score, target_score, gap_percentage, skills(id, name)")
     ),
 
     read(
       client
         .from("jobs")
-        .select("id, status")
+        .select("id, title, company_name, location, employment_type, status, created_at, job_skills(skill_id, skills(name))")
     ),
 
     read(
       client
         .from("applications")
-        .select("id, status")
+        .select("id, job_id, user_id, status, applied_at, jobs(title, company_name)")
     ),
   ]);
 
@@ -817,8 +823,14 @@ export const getEmployerData = async (
 ) => {
   const client = requireClient();
 
-  const [jobs, applications] =
+  const [employerResult, jobs, applications] =
     await Promise.all([
+      client
+        .from("profiles")
+        .select("id, full_name, email, role, location, career_goal, bio")
+        .eq("id", employerId)
+        .maybeSingle(),
+
       read(
         client
           .from("jobs")
@@ -843,6 +855,8 @@ export const getEmployerData = async (
           })
       ),
     ]);
+
+  if (employerResult.error) throw employerResult.error;
 
   const candidateIds = [
     ...new Set(
@@ -932,9 +946,11 @@ export const getEmployerData = async (
     });
 
   return {
+    employer: employerResult.data || null,
     jobs,
     applications:
       enrichedApplications,
+    candidateProgress: progressByUser,
   };
 };
 
@@ -1048,14 +1064,21 @@ export const createEmployerJob = async ({
   skillIds,
 }) => {
   const client = requireClient();
+  const jobValues = {
+    title: job.title,
+    company_name: job.company_name,
+    location: job.location,
+    employment_type: job.employment_type,
+    salary_range: job.salary_range,
+    description: jobDescription(job),
+    status: job.status,
+    employer_id: employerId,
+  };
 
   const { data, error } =
     await client
       .from("jobs")
-      .insert({
-        ...job,
-        employer_id: employerId,
-      })
+      .insert(jobValues)
       .select()
       .single();
 
@@ -1089,11 +1112,20 @@ export const updateEmployerJob = async ({
   skillIds,
 }) => {
   const client = requireClient();
+  const jobValues = {
+    title: job.title,
+    company_name: job.company_name,
+    location: job.location,
+    employment_type: job.employment_type,
+    salary_range: job.salary_range,
+    description: jobDescription(job),
+    status: job.status,
+  };
 
   const { data, error } =
     await client
       .from("jobs")
-      .update(job)
+      .update(jobValues)
       .eq("id", job.id)
       .eq("employer_id", employerId)
       .select()
@@ -1179,9 +1211,7 @@ export const updateApplicationStatus = async (
   const { data: application, error: applicationError } =
     await client
       .from("applications")
-      .select(
-        "id, jobs!inner(employer_id)"
-      )
+      .select("id, status, jobs!inner(employer_id)")
       .eq("id", applicationId)
       .eq(
         "jobs.employer_id",
@@ -1197,6 +1227,19 @@ export const updateApplicationStatus = async (
     throw new Error(
       "You are not authorized to update this application."
     );
+  }
+
+  const nextStatuses = {
+    Applied: ["Under Review", "Rejected"],
+    "Under Review": ["Shortlisted", "Rejected"],
+    Shortlisted: ["Interview", "Rejected"],
+    Interview: ["Selected", "Rejected"],
+    Selected: [],
+    Rejected: [],
+  };
+
+  if (application.status !== status && !nextStatuses[application.status]?.includes(status)) {
+    throw new Error(`Cannot move an application from ${application.status} to ${status}.`);
   }
 
   const { data, error } =

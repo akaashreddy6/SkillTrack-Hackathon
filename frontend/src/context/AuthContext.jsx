@@ -52,6 +52,9 @@ export function AuthProvider({ children }) {
         }
 
         setLoading(false);
+      })
+      .catch(() => {
+        if (mounted) setLoading(false);
       });
 
     const { data: listener } =
@@ -119,10 +122,11 @@ export function AuthProvider({ children }) {
      * Only allow the two normal registration roles.
      * Admin should never be selectable during normal signup.
      */
-    const selectedRole =
-      role === "employer"
-        ? "employer"
-        : "student";
+    const selectedRole = String(role || "").toLowerCase();
+
+    if (!["student", "employer"].includes(selectedRole)) {
+      throw new Error("Choose either a Student or Employer account type.");
+    }
 
     const { data, error } =
       await supabase.auth.signUp({

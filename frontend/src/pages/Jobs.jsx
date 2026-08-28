@@ -1,78 +1,71 @@
-import { Link } from "react-router-dom";
-import { DashboardHeader } from "../components/DashboardLayout";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { PageHeader, PlatformLayout, StatusBadge } from "../components/Platform";
+import { applyToJob, getApplications, getJobById, getJobMatches } from "../services/skilltrackService";
+import { useAuth } from "../context/AuthContext";
 
-const jobs = [
-  {
-    title: "Frontend Developer",
-    company: "Nova Labs",
-    location: "Remote",
-    match: 92,
-    skills: ["React", "CSS", "JavaScript"],
-  },
-  {
-    title: "UI Engineer",
-    company: "BrightPath",
-    location: "Hybrid",
-    match: 88,
-    skills: ["HTML", "CSS", "Accessibility"],
-  },
-  {
-    title: "Full Stack Intern",
-    company: "SkillNest",
-    location: "On-site",
-    match: 81,
-    skills: ["JavaScript", "React", "Java"],
-  },
-  {
-    title: "Junior Product Engineer",
-    company: "Synthex",
-    location: "Remote",
-    match: 79,
-    skills: ["React", "Problem Solving", "API Design"],
-  },
-];
-
-function Jobs() {
-  return (
-    <div className="dashboard-page">
-      <DashboardHeader />
-
-      <main className="dashboard-main dashboard-inner">
-        <section className="page-header">
-          <div>
-            <p className="eyebrow">JOB MATCHES</p>
-            <h1>Recommended Opportunities</h1>
-          </div>
-        </section>
-
-        <section className="job-grid dashboard-jobs-grid">
-          {jobs.map((job) => (
-            <article key={job.title} className="job-card">
-              <div className="job-header-row">
-                <div>
-                  <h3>{job.title}</h3>
-                  <p>{job.company}</p>
-                </div>
-                <span className="match-pill">{job.match}% Match</span>
-              </div>
-
-              <div className="job-location">{job.location}</div>
-
-              <div className="job-skills">
-                {job.skills.map((skill) => (
-                  <span key={skill}>{skill}</span>
-                ))}
-              </div>
-
-              <Link to="/applications" className="secondary-action full-width">
-                View Job
-              </Link>
-            </article>
-          ))}
-        </section>
-      </main>
-    </div>
-  );
+function JobDetails() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [job, setJob] = useState(null);
+  const [match, setMatch] = useState(null);
+  const [applied, setApplied] = useState(false);
+  const [state, setState] = useState({ loading: true, error: "", message: "" });
+  useEffect(() => {
+    let active = true;
+    Promise.all([getJobById(id), getJobMatches(user.id), getApplications(user.id)]).then(([detail, allMatches, applications]) => {
+      if (!active) return;
+      setJob(detail);
+      setMatch(allMatches.find((item) => item.id === detail.id) || null);
+      setApplied(applications.some((application) => application.job_id === detail.id));
+    }).catch((error) => { if (active) setState((previous) => ({ ...previous, error: error.message || "Unable to load this job." })); }).finally(() => { if (active) setState((previous) => ({ ...previous, loading: false })); });
+    return () => { active = false; };
+  }, [id, user.id]);
+  const apply = async () => {
+    if (applied) return;
+    try { await applyToJob(id, user.id); setApplied(true); setState((previous) => ({ ...previous, message: "Application submitted successfully." })); }
+    catch (error) { setState((previous) => ({ ...previous, error: error.message || "Unable to submit application." })); }
+  };
+  if (state.loading) return <PlatformLayout><div className="route-state">Loading job details...</div></PlatformLayout>;
+  if (state.error) return <PlatformLayout><div className="data-error">{state.error}</div></PlatformLayout>;
+  const result = match || { match: 0, matchLabel: "Low Match", matchedSkills: [], missingSkills: [] };
+  return <PlatformLayout>
+    <PageHeader eyebrow="OPPORTUNITY DETAILS" title={job.title} description={`${job.company_name} · ${job.location}`} action={<StatusBadge>{result.matchLabel}</StatusBadge>} />
+    <section className="job-detail-grid">
+      <article className="panel job-detail-main">
+        <div className="job-detail-meta"><span>{job.location}</span><span>{job.employment_type || "Employment type not listed"}</span><span>{job.salary_range || "Salary not listed"}</span></div>
+        <h2>About this role</h2><p>{job.description || "No description has been provided for this role."}</p>
+        <h2>Required skills</h2><div className="job-skills">{job.job_skills?.map((item) => <span key={item.skill_id}>{item.skills?.name} · {item.minimum_score}%</span>)}</div>
+        <h2>Your match</h2><div className="job-match-large"><strong>{result.match}%</strong><div><StatusBadge>{result.matchLabel}</StatusBadge><p>Based on your current skill progress.</p></div></div>
+        <div className="match-columns"><div><h3>Matched skills</h3>{result.matchedSkills.length ? result.matchedSkills.map((item) => <p key={item.skill_id}>✓ {item.skills?.name} · {item.current}%</p>) : <p>No required skills currently meet the threshold.</p>}</div><div><h3>Skills to improve</h3>{result.missingSkills.length ? result.missingSkills.map((item) => <p key={item.skill_id}>! {item.skills?.name} · {item.current === null ? "Not assessed" : `${item.current}%`}</p>) : <p>All required skills meet the threshold.</p>}</div></div>
+      </article>
+      <aside className="panel job-apply-panel"><span className="section-kicker">READY TO MOVE FORWARD?</span><h2>{result.match}% match</h2><p>Apply with your current profile and keep building your readiness through SkillTrack.</p><button className="button button-primary full-width" disabled={applied} onClick={apply}>{applied ? "Already Applied" : "Apply"}</button><button className="button button-secondary full-width" onClick={() => navigate(`/learning?skill=${result.missingSkills[0]?.skill_id || ""}`)}>Improve Skill</button>{state.message && <div className="auth-success data-feedback">{state.message}</div>}<Link className="back-link" to="/jobs">Back to jobs</Link></aside>
+    </section>
+  </PlatformLayout>;
 }
 
-export default Jobs;
+function Jobs() {
+  const { user } = useAuth();
+  const [jobs, setJobs] = useState([]);
+  const [appliedIds, setAppliedIds] = useState(new Set());
+  const [state, setState] = useState({ loading: true, error: "" });
+  const [filters, setFilters] = useState({ search: "", location: "All", employment: "All", minimumMatch: "0" });
+  useEffect(() => { let active = true; Promise.all([getJobMatches(user.id), getApplications(user.id)]).then(([availableJobs, applications]) => { if (!active) return; setJobs(availableJobs); setAppliedIds(new Set(applications.map((application) => application.job_id))); }).catch((error) => { if (active) setState({ loading: false, error: error.message || "Unable to load jobs." }); }).finally(() => { if (active) setState((previous) => ({ ...previous, loading: false })); }); return () => { active = false; }; }, [user.id]);
+  const filteredJobs = useMemo(() => jobs.filter((job) => {
+    const haystack = `${job.title} ${job.company_name} ${job.job_skills?.map((item) => item.skills?.name).join(" ")}`.toLowerCase();
+    return (!filters.search || haystack.includes(filters.search.toLowerCase())) && (filters.location === "All" || job.location === filters.location) && (filters.employment === "All" || job.employment_type === filters.employment) && job.match >= Number(filters.minimumMatch);
+  }), [jobs, filters]);
+  const locations = [...new Set(jobs.map((job) => job.location).filter(Boolean))];
+  const employmentTypes = [...new Set(jobs.map((job) => job.employment_type).filter(Boolean))];
+  return <PlatformLayout>
+    <PageHeader eyebrow="JOB MATCHES" title="Recommended opportunities" description="Explore roles matched to your real skill progress and find your next step." />
+    <section className="job-filters panel"><input aria-label="Search jobs" placeholder="Search roles, companies, or skills" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} /><select aria-label="Filter by location" value={filters.location} onChange={(event) => setFilters({ ...filters, location: event.target.value })}><option>All</option>{locations.map((location) => <option key={location}>{location}</option>)}</select><select aria-label="Filter by employment type" value={filters.employment} onChange={(event) => setFilters({ ...filters, employment: event.target.value })}><option>All</option>{employmentTypes.map((type) => <option key={type}>{type}</option>)}</select><select aria-label="Filter by match" value={filters.minimumMatch} onChange={(event) => setFilters({ ...filters, minimumMatch: event.target.value })}><option value="0">Any match</option><option value="40">40%+ match</option><option value="60">60%+ match</option><option value="80">80%+ match</option></select></section>
+    <section className="job-grid dashboard-jobs-grid">{state.loading && <div className="route-state">Calculating your job matches...</div>}{!state.loading && state.error && <div className="data-error">{state.error}</div>}{!state.loading && !state.error && !filteredJobs.length && <div className="empty-state">No opportunities match these filters.</div>}{filteredJobs.map((job) => <article key={job.id} className="job-card"><div className="job-header-row"><div><h3>{job.title}</h3><p>{job.company_name}</p></div><div className="job-match-badge"><strong>{job.match}%</strong><small>{job.matchLabel}</small></div></div><div className="job-location">{job.location} · {job.employment_type || "Employment type not listed"} · {job.salary_range || "Salary not listed"}</div><p className="job-description">{job.description || "No description provided."}</p><div className="job-skills">{job.job_skills?.map((item) => <span key={item.skill_id}>{item.skills?.name}</span>)}</div><div className="job-match-summary"><span>Matched: {job.matchedSkills.length}</span><span>Needs improvement: {job.missingSkills.length}</span></div><div className="job-card-actions"><Link to={`/jobs/${job.id}`} className="button button-secondary">View details</Link><Link to={`/jobs/${job.id}`} className="button button-primary">{appliedIds.has(job.id) ? "Already Applied" : "Apply"}</Link></div></article>)}</section>
+  </PlatformLayout>;
+}
+
+export default function JobsRoute() {
+  const { id } = useParams();
+  return id ? <JobDetails /> : <Jobs />;
+}

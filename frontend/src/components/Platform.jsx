@@ -2,8 +2,8 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 const studentItems = [
   ["Overview", "/dashboard", "01"], ["Skills", "/skills", "02"], ["Assessments", "/assessments", "03"],
-  ["Learning", "/learning", "04"], ["Jobs", "/jobs", "05"], ["Applications", "/applications", "06"],
-  ["Certifications", "/certifications", "07"], ["Profile", "/profile", "08"],
+  ["Learning", "/learning", "04"], ["Career readiness", "/career", "05"], ["Portfolio", "/portfolio", "06"], ["Jobs", "/jobs", "07"], ["Applications", "/applications", "08"],
+  ["Certifications", "/certifications", "09"], ["Profile", "/profile", "10"],
 ];
 const roleItems = { admin: [["Overview", "/admin"], ["Candidates", "/admin/candidates"], ["Assessments", "/admin/assessments"], ["Skills Analytics", "/admin/skills"], ["Jobs", "/admin/jobs"], ["Employment", "/admin/employment"], ["Reports", "/admin/reports"]], employer: [["Overview", "/employer"], ["Jobs", "/employer/jobs"], ["Candidates", "/employer/candidates"], ["Applications", "/employer/applications"], ["Profile", "/employer/profile"]] };
 

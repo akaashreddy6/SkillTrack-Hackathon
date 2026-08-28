@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function FormField({ label, type, name, value, placeholder, onChange, error }) {
   return (
@@ -51,6 +52,8 @@ function PasswordField({ label, name, value, placeholder, onChange, error, showP
 
 function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { signIn, isConfigured } = useAuth();
 
   const [formData, setFormData] = useState({
     email: "",
@@ -90,7 +93,7 @@ function Login() {
     return nextErrors;
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     const nextErrors = validate();
 
@@ -102,7 +105,13 @@ function Login() {
 
     setErrors({});
     setSubmitMessage("");
-    navigate("/dashboard");
+    try {
+      const { user } = await signIn(formData.email.trim(), formData.password);
+      const destination = location.state?.from || "/dashboard";
+      navigate(user ? destination : "/dashboard", { replace: true });
+    } catch (error) {
+      setSubmitMessage(error.message || "Unable to sign in. Please try again.");
+    }
   };
 
   return (
@@ -115,7 +124,7 @@ function Login() {
         <h1>Welcome back</h1>
         <p className="auth-subtitle">Sign in to continue your career journey.</p>
 
-        {submitMessage && <div className="auth-success">{submitMessage}</div>}
+        {submitMessage && <div className={isConfigured ? "auth-error" : "auth-success"}>{submitMessage}</div>}
 
         <form onSubmit={handleSubmit} noValidate>
           <FormField

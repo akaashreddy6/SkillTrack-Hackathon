@@ -1,7 +1,9 @@
 import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 export function DashboardHeader() {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
 
   const navItems = [
     { label: "Dashboard", to: "/dashboard" },
@@ -35,7 +37,7 @@ export function DashboardHeader() {
       <button
         type="button"
         className="logout-button"
-        onClick={() => navigate("/login")}
+        onClick={async () => { await signOut(); navigate("/login"); }}
       >
         Logout
       </button>

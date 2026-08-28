@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function FormField({ label, type, name, value, placeholder, onChange, error }) {
   return (
@@ -50,6 +51,8 @@ function PasswordField({ label, name, value, placeholder, onChange, error, showP
 }
 
 function Register() {
+  const navigate = useNavigate();
+  const { signUp } = useAuth();
   const [formData, setFormData] = useState({
     fullName: "",
     email: "",
@@ -61,7 +64,7 @@ function Register() {
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [submitMessage, setSubmitMessage] = useState("");
+  const [submitMessage, setSubmitMessage] = useState({ text: "", type: "" });
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -69,7 +72,7 @@ function Register() {
 
     setFormData((prev) => ({ ...prev, [name]: fieldValue }));
     setErrors((prev) => ({ ...prev, [name]: "" }));
-    setSubmitMessage("");
+    setSubmitMessage({ text: "", type: "" });
   };
 
   const validate = () => {
@@ -107,18 +110,40 @@ function Register() {
     return nextErrors;
   };
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
     const nextErrors = validate();
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
-      setSubmitMessage("");
+      setSubmitMessage({ text: "", type: "" });
       return;
     }
 
     setErrors({});
-    setSubmitMessage("Account created successfully. Demo mode only — no backend connected yet.");
+    try {
+      const { session } = await signUp({ fullName: formData.fullName.trim(), email: formData.email.trim(), password: formData.password });
+      if (session) navigate("/dashboard", { replace: true });
+      else setSubmitMessage({ text: "Account created. Check your email to confirm your address, then sign in.", type: "success" });
+    } catch (error) {
+      const message = String(error.message || "");
+      const normalizedMessage = message.toLowerCase();
+      const type = normalizedMessage.includes("rate limit") || normalizedMessage.includes("too many")
+        ? "rate-limit"
+        : normalizedMessage.includes("already registered") || normalizedMessage.includes("already exists")
+          ? "existing-email"
+          : normalizedMessage.includes("database error") || normalizedMessage.includes("trigger")
+            ? "database-error"
+            : "error";
+      const text = type === "rate-limit"
+        ? "Too many signup attempts. Please wait before trying again."
+        : type === "existing-email"
+          ? "An account with this email already exists. Try signing in instead."
+          : type === "database-error"
+            ? "Your account could not be completed because the profile could not be created. Please try again later."
+            : message || "Unable to create your account. Please try again.";
+      setSubmitMessage({ text, type });
+    }
   };
 
   return (
@@ -131,7 +156,7 @@ function Register() {
         <h1>Create your account</h1>
         <p className="auth-subtitle">Start building your skills and career.</p>
 
-        {submitMessage && <div className="auth-success">{submitMessage}</div>}
+        {submitMessage.text && <div className={submitMessage.type === "success" ? "auth-success" : "auth-error"}>{submitMessage.text}</div>}
 
         <form onSubmit={handleSubmit} noValidate>
           <FormField

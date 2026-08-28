@@ -1,47 +1,8 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { DashboardHeader } from "../components/DashboardLayout";
-
-const skillProgress = [
-  { name: "HTML", value: 92 },
-  { name: "CSS", value: 84 },
-  { name: "JavaScript", value: 68 },
-  { name: "React", value: 76 },
-  { name: "Java", value: 52 },
-];
-
-const gaps = [
-  { name: "JavaScript", current: "Intermediate", target: "Advanced", button: "Improve Skill" },
-  { name: "React", current: "Intermediate", target: "Advanced", button: "Improve Skill" },
-  { name: "Java", current: "Basic", target: "Intermediate", button: "Improve Skill" },
-];
-
-const assessments = [
-  { name: "Frontend Fundamentals", skill: "HTML/CSS", score: "92%", date: "12 Aug 2026", status: "Passed" },
-  { name: "JavaScript Logic Test", skill: "JavaScript", score: "68%", date: "08 Aug 2026", status: "In Review" },
-  { name: "React Components Quiz", skill: "React", score: "78%", date: "03 Aug 2026", status: "Passed" },
-  { name: "Java OOP Assessment", skill: "Java", score: "57%", date: "29 Jul 2026", status: "Needs Review" },
-];
-
-const jobs = [
-  {
-    title: "Frontend Developer",
-    company: "Nova Labs",
-    skills: ["React", "CSS", "JavaScript"],
-    match: 92,
-  },
-  {
-    title: "UI Engineer",
-    company: "BrightPath",
-    skills: ["HTML", "CSS", "Accessibility"],
-    match: 88,
-  },
-  {
-    title: "Full Stack Intern",
-    company: "SkillNest",
-    skills: ["JavaScript", "React", "Java"],
-    match: 81,
-  },
-];
+import { useAuth } from "../context/AuthContext";
+import { getDashboardData, getJobMatches } from "../services/skilltrackService";
 
 function OverviewCard({ label, value, detail, accent, icon }) {
   return (
@@ -56,7 +17,37 @@ function OverviewCard({ label, value, detail, accent, icon }) {
   );
 }
 
+function skillLevel(score) {
+  return score < 40 ? "Critical Gap" : score < 60 ? "Needs Improvement" : score < 80 ? "Good" : "Strong";
+}
+
 function Dashboard() {
+  const { user, profile } = useAuth();
+  const [data, setData] = useState({ profile: null, progress: [], attempts: [], applications: [], jobs: [] });
+  const [state, setState] = useState({ loading: true, error: "" });
+  useEffect(() => {
+    if (!user?.id) {
+      setState({ loading: false, error: "Please sign in to view your dashboard." });
+      return undefined;
+    }
+    let active = true;
+    const loadDashboard = () => {
+      setState({ loading: true, error: "" });
+      Promise.all([getDashboardData(user.id), getJobMatches(user.id)]).then(([dashboard, availableJobs]) => {
+        if (!active) return;
+        const assessedSkillIds = new Set(dashboard.attempts.map((attempt) => attempt.assessments?.skill_id).filter(Boolean));
+        setData({ ...dashboard, assessedSkillCount: assessedSkillIds.size, jobs: availableJobs.slice(0, 3) });
+      }).catch((error) => { if (active) setState({ loading: false, error: error.message || "Unable to load your dashboard." }); }).finally(() => { if (active) setState((prev) => ({ ...prev, loading: false })); });
+    };
+    loadDashboard();
+    window.addEventListener("focus", loadDashboard);
+    window.addEventListener("skilltrack:assessment-submitted", loadDashboard);
+    return () => { active = false; window.removeEventListener("focus", loadDashboard); window.removeEventListener("skilltrack:assessment-submitted", loadDashboard); };
+  }, [user?.id]);
+  if (!user) return <div className="route-state">Please sign in to view your dashboard.</div>;
+  const currentProfile = data.profile || profile;
+  const overallScore = data.progress.length ? Math.round(data.progress.reduce((total, item) => total + item.current_score, 0) / data.progress.length) : 0;
+  const gaps = data.progress.filter((item) => item.gap_percentage > 0);
   return (
     <div className="dashboard-page">
       <DashboardHeader />
@@ -65,11 +56,12 @@ function Dashboard() {
         <section className="welcome-panel">
           <div>
             <p className="eyebrow">STUDENT DASHBOARD</p>
-            <h1>Welcome back!</h1>
+            <h1>Good morning, {currentProfile?.full_name || "there"}</h1>
+            <p className="dashboard-subtitle">Your career readiness overview</p>
             <p className="welcome-copy">
-              Continue building your skills, review recent assessments, and unlock
-              new opportunities aligned with your career goals.
+              {currentProfile?.email || user.email} · {currentProfile?.role || "student"}
             </p>
+            {!currentProfile && <p className="data-error">Your profile has not been created yet. Open Profile to complete it.</p>}
           </div>
 
           <Link to="/learning" className="primary-dashboard-button">
@@ -78,10 +70,10 @@ function Dashboard() {
         </section>
 
         <section className="overview-grid">
-          <OverviewCard label="Overall Skill Score" value="82%" detail="+6% this month" accent="blue" icon="★" />
-          <OverviewCard label="Skills Assessed" value="12" detail="4 new this month" accent="green" icon="✓" />
-          <OverviewCard label="Skill Gaps" value="03" detail="2 high-priority" accent="orange" icon="!" />
-          <OverviewCard label="Applications" value="09" detail="3 interviews this week" accent="purple" icon="↗" />
+          <OverviewCard label="Overall Skill Score" value={`${overallScore}%`} detail="From your latest assessments" accent="blue" icon="★" />
+          <OverviewCard label="Skills Assessed" value={data.assessedSkillCount ?? data.progress.length} detail="Completed assessments" accent="green" icon="✓" />
+          <OverviewCard label="Skill Gaps" value={gaps.length} detail="Areas below target" accent="orange" icon="!" />
+          <OverviewCard label="Profile Completion" value={`${currentProfile?.profile_completion || 0}%`} detail="Keep your profile current" accent="purple" icon="↗" />
         </section>
 
         <section className="dashboard-grid">
@@ -92,14 +84,16 @@ function Dashboard() {
             </div>
 
             <div className="progress-list">
-              {skillProgress.map((skill) => (
-                <div key={skill.name} className="progress-item">
+              {state.loading && <div className="route-state">Loading your skill progress...</div>}
+              {!state.loading && !data.progress.length && <div className="empty-state">No skill assessments completed yet.</div>}
+              {data.progress.map((skill) => (
+                <div key={skill.id} className="progress-item">
                   <div className="progress-label-row">
-                    <span>{skill.name}</span>
-                    <strong>{skill.value}%</strong>
+                    <span>{skill.skills?.name}</span>
+                    <strong>{skill.current_score}%</strong>
                   </div>
                   <div className="progress-track">
-                    <div className="progress-fill" style={{ width: `${skill.value}%` }} />
+                    <div className="progress-fill" style={{ width: `${skill.current_score}%` }} />
                   </div>
                 </div>
               ))}
@@ -113,15 +107,17 @@ function Dashboard() {
             </div>
 
             <div className="gap-list">
+              {!state.loading && !state.error && !gaps.length && <div className="empty-state">No skills need improvement right now.</div>}
               {gaps.map((gap) => (
-                <div key={gap.name} className="gap-item">
+                <div key={gap.id} className="gap-item">
                   <div className="gap-topline">
-                    <strong>{gap.name}</strong>
-                    <span>{gap.current}</span>
+                    <strong>{gap.skills?.name}</strong>
+                    <span>{gap.current_score}%</span>
                   </div>
-                  <p>Target: {gap.target}</p>
-                    <Link to="/learning" className="secondary-action">
-                    {gap.button}
+                  <p>Target: {gap.target_score}% · Gap: {gap.gap_percentage}% · {skillLevel(gap.current_score)}</p>
+                  <p className="gap-recommendation">Top recommendation: {gap.current_score < 40 ? "Fundamentals" : gap.current_score < 60 ? "Core skills" : gap.current_score < 80 ? "Advanced skills" : "Practical projects"}</p>
+                    <Link to={`/learning?skill=${gap.skill_id}`} className="secondary-action">
+                    Improve Skill
                     </Link>
                 </div>
               ))}
@@ -136,6 +132,8 @@ function Dashboard() {
           </div>
 
           <div className="table-wrap">
+            {state.error && <div className="data-error">{state.error}</div>}
+            {!state.loading && !state.error && !data.attempts.length && <div className="empty-state">No assessments completed yet.</div>}
             <table>
               <thead>
                 <tr>
@@ -147,15 +145,15 @@ function Dashboard() {
                 </tr>
               </thead>
               <tbody>
-                {assessments.map((assessment) => (
-                  <tr key={assessment.name}>
-                    <td>{assessment.name}</td>
-                    <td>{assessment.skill}</td>
-                    <td>{assessment.score}</td>
-                    <td>{assessment.date}</td>
+                {data.attempts.map((assessment) => (
+                  <tr key={assessment.id}>
+                    <td>{assessment.assessments?.title}</td>
+                    <td>{assessment.assessments?.skills?.name}</td>
+                    <td>{assessment.percentage}%</td>
+                    <td>{new Date(assessment.completed_at).toLocaleDateString()}</td>
                     <td>
-                      <span className={`status-badge ${assessment.status.toLowerCase().replace(/\s+/g, "-")}`}>
-                        {assessment.status}
+                      <span className={`status-badge ${assessment.performance_level.toLowerCase().replace(/\s+/g, "-")}`}>
+                        {assessment.performance_level}
                       </span>
                     </td>
                   </tr>
@@ -172,19 +170,21 @@ function Dashboard() {
           </div>
 
           <div className="job-grid">
-            {jobs.map((job) => (
-              <article key={job.title} className="job-card">
+            {data.jobs.map((job) => (
+              <article key={job.id} className="job-card">
                 <div className="job-header-row">
                   <div>
                     <h3>{job.title}</h3>
-                    <p>{job.company}</p>
+                    <p>{job.company_name}</p>
                   </div>
                   <span className="match-pill">{job.match}% Match</span>
                 </div>
 
+                {job.missingSkills?.length > 0 && <p className="job-missing">Missing: {job.missingSkills.map((item) => item.skills?.name).join(", ")}</p>}
+
                 <div className="job-skills">
-                  {job.skills.map((skill) => (
-                    <span key={skill}>{skill}</span>
+                  {job.job_skills?.map((jobSkill) => (
+                    <span key={jobSkill.skill_id}>{jobSkill.skills?.name}</span>
                   ))}
                 </div>
 

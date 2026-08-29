@@ -107,65 +107,52 @@ export function AuthProvider({ children }) {
   };
 
   const signUp = async ({
-    fullName,
+  fullName,
+  email,
+  password,
+  role,
+}) => {
+  if (!isSupabaseConfigured) {
+    throw new Error(
+      "Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to frontend/.env.local."
+    );
+  }
+
+  const selectedRole = String(role || "").toLowerCase();
+
+  if (!["student", "employer"].includes(selectedRole)) {
+    throw new Error(
+      "Choose either a Student or Employer account type."
+    );
+  }
+
+  const { data, error } = await supabase.auth.signUp({
     email,
     password,
-    role,
-  }) => {
-    if (!isSupabaseConfigured) {
-      throw new Error(
-        "Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to frontend/.env.local."
-      );
-    }
-
-    const selectedRole = String(role || "").toLowerCase();
-
-    if (!["student", "employer"].includes(selectedRole)) {
-      throw new Error("Choose either a Student or Employer account type.");
-    }
-
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-          role: selectedRole,
-        },
+    options: {
+      data: {
+        full_name: fullName,
+        role: selectedRole,
       },
-    });
+    },
+  });
 
-    if (error) throw error;
+  if (error) {
+    throw error;
+  }
 
-    const normalizedUser = data?.user || null;
+  const normalizedUser = data?.user || null;
 
-    if (normalizedUser) {
-      const { data: updatedProfile, error: profileError } = await supabase
-        .from("profiles")
-        .upsert(
-          {
-            id: normalizedUser.id,
-            full_name: fullName,
-            email,
-            role: selectedRole,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "id" }
-        )
-        .select()
-        .single();
+  if (normalizedUser) {
+    setUser(normalizedUser);
 
-      if (profileError) {
-        throw profileError;
-      }
-
-      setUser(normalizedUser);
-      setProfile(updatedProfile || null);
+    if (data.session) {
+      await refreshProfile(normalizedUser);
     }
+  }
 
-    return data;
-  };
-
+  return data;
+};
   const signOut = () =>
     supabase
       ? supabase.auth.signOut()

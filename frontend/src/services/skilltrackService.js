@@ -40,7 +40,7 @@ export const getDashboardData = async (userId) => {
     .eq("id", userId)
     .maybeSingle();
 
-  const [profileResult, progress, attempts, applications] =
+  const [profileResult, progress, attempts, applications, learning] =
     await Promise.all([
       profileQuery,
 
@@ -73,6 +73,16 @@ export const getDashboardData = async (userId) => {
           .eq("user_id", userId)
           .order("updated_at", { ascending: false })
       ),
+
+      read(
+        client
+          .from("learning_progress")
+          .select(
+            "id, user_id, learning_topic_id, progress, status, updated_at, completed_at, learning_topics(id, skill_id, topic, phase, difficulty, skills(id, name))"
+          )
+          .eq("user_id", userId)
+          .order("updated_at", { ascending: false })
+      ),
     ]);
 
   if (profileResult.error) throw profileResult.error;
@@ -82,7 +92,24 @@ export const getDashboardData = async (userId) => {
     progress,
     attempts,
     applications,
+    learning,
   };
+};
+
+export const getCurrentLearningProgress = async (userId) => {
+  const client = requireClient();
+
+  const { data, error } = await client
+    .from("learning_progress")
+    .select(
+      "id, user_id, learning_topic_id, progress, status, updated_at, completed_at, learning_topics(id, skill_id, topic, phase, difficulty, skills(id, name))"
+    )
+    .eq("user_id", userId)
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+
+  return data || [];
 };
 
 export const getJobs = async () =>

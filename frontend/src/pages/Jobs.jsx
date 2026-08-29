@@ -54,17 +54,79 @@ function Jobs() {
   const [appliedIds, setAppliedIds] = useState(new Set());
   const [state, setState] = useState({ loading: true, error: "" });
   const [filters, setFilters] = useState({ search: "", location: "All", employment: "All", minimumMatch: "0" });
-  useEffect(() => { let active = true; Promise.all([getJobMatches(user.id), getApplications(user.id)]).then(([availableJobs, applications]) => { if (!active) return; setJobs(availableJobs); setAppliedIds(new Set(applications.map((application) => application.job_id))); }).catch((error) => { if (active) setState({ loading: false, error: error.message || "Unable to load jobs." }); }).finally(() => { if (active) setState((previous) => ({ ...previous, loading: false })); }); return () => { active = false; }; }, [user.id]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all([getJobMatches(user.id), getApplications(user.id)]).then(([availableJobs, applications]) => {
+      if (!active) return;
+      setJobs(availableJobs);
+      setAppliedIds(new Set(applications.map((application) => application.job_id)));
+    }).catch((error) => {
+      if (active) setState({ loading: false, error: error.message || "Unable to load jobs." });
+    }).finally(() => {
+      if (active) setState((previous) => ({ ...previous, loading: false }));
+    });
+    return () => { active = false; };
+  }, [user.id]);
+
   const filteredJobs = useMemo(() => jobs.filter((job) => {
     const haystack = `${job.title} ${job.company_name} ${job.job_skills?.map((item) => item.skills?.name).join(" ")}`.toLowerCase();
-    return (!filters.search || haystack.includes(filters.search.toLowerCase())) && (filters.location === "All" || job.location === filters.location) && (filters.employment === "All" || job.employment_type === filters.employment) && job.match >= Number(filters.minimumMatch);
+    const matchesSearch = !filters.search || haystack.includes(filters.search.trim().toLowerCase());
+    const matchesLocation = filters.location === "All" || job.location === filters.location;
+    const matchesEmployment = filters.employment === "All" || job.employment_type === filters.employment;
+    const matchesMinimum = Number(job.match || 0) >= Number(filters.minimumMatch || 0);
+    return matchesSearch && matchesLocation && matchesEmployment && matchesMinimum;
   }), [jobs, filters]);
+
   const locations = [...new Set(jobs.map((job) => job.location).filter(Boolean))];
   const employmentTypes = [...new Set(jobs.map((job) => job.employment_type).filter(Boolean))];
+  const hasActiveFilters = Boolean(filters.search || filters.location !== "All" || filters.employment !== "All" || Number(filters.minimumMatch) > 0);
+
+  const clearFilters = () => setFilters({ search: "", location: "All", employment: "All", minimumMatch: "0" });
+
   return <PlatformLayout>
     <PageHeader eyebrow="JOB MATCHES" title="Recommended opportunities" description="Explore roles matched to your real skill progress and find your next step." />
-    <section className="job-filters panel"><input aria-label="Search jobs" placeholder="Search roles, companies, or skills" value={filters.search} onChange={(event) => setFilters({ ...filters, search: event.target.value })} /><select aria-label="Filter by location" value={filters.location} onChange={(event) => setFilters({ ...filters, location: event.target.value })}><option>All</option>{locations.map((location) => <option key={location}>{location}</option>)}</select><select aria-label="Filter by employment type" value={filters.employment} onChange={(event) => setFilters({ ...filters, employment: event.target.value })}><option>All</option>{employmentTypes.map((type) => <option key={type}>{type}</option>)}</select><select aria-label="Filter by match" value={filters.minimumMatch} onChange={(event) => setFilters({ ...filters, minimumMatch: event.target.value })}><option value="0">Any match</option><option value="40">40%+ match</option><option value="60">60%+ match</option><option value="80">80%+ match</option></select></section>
-    <section className="job-grid dashboard-jobs-grid">{state.loading && <div className="route-state">Calculating your job matches...</div>}{!state.loading && state.error && <div className="data-error">{state.error}</div>}{!state.loading && !state.error && !filteredJobs.length && <div className="empty-state">No opportunities match these filters.</div>}{filteredJobs.map((job) => <article key={job.id} className="job-card"><div className="job-header-row"><div><h3>{job.title}</h3><p>{job.company_name}</p></div><div className="job-match-badge"><strong>{job.match}%</strong><small>{job.matchLabel}</small></div></div><div className="job-location">{job.location} · {job.employment_type || "Employment type not listed"} · {job.salary_range || "Salary not listed"}</div><p className="job-description">{job.description || "No description provided."}</p><div className="job-skills">{job.job_skills?.map((item) => <span key={item.skill_id}>{item.skills?.name}</span>)}</div><div className="job-match-summary"><span>Matched: {job.matchedSkills.length}</span><span>Needs improvement: {job.missingSkills.length}</span></div><div className="job-card-actions"><Link to={`/jobs/${job.id}`} className="button button-secondary">View details</Link><Link to={`/jobs/${job.id}`} className="button button-primary">{appliedIds.has(job.id) ? "Already Applied" : "Apply"}</Link></div></article>)}</section>
+    <section className="job-filters panel">
+      <div className="filter-toolbar">
+        <label className="search-field" aria-label="Search jobs">
+          <span className="search-field-icon">⌕</span>
+          <input
+            type="search"
+            placeholder="Search roles, companies, or skills"
+            value={filters.search}
+            onChange={(event) => setFilters({ ...filters, search: event.target.value })}
+          />
+        </label>
+        <select aria-label="Filter by location" value={filters.location} onChange={(event) => setFilters({ ...filters, location: event.target.value })}>
+          <option value="All">All locations</option>
+          {locations.map((location) => <option key={location}>{location}</option>)}
+        </select>
+        <select aria-label="Filter by employment type" value={filters.employment} onChange={(event) => setFilters({ ...filters, employment: event.target.value })}>
+          <option value="All">All types</option>
+          {employmentTypes.map((type) => <option key={type}>{type}</option>)}
+        </select>
+        <select aria-label="Filter by minimum match" value={filters.minimumMatch} onChange={(event) => setFilters({ ...filters, minimumMatch: event.target.value })}>
+          <option value="0">Any match</option>
+          <option value="40">40%+ match</option>
+          <option value="60">60%+ match</option>
+          <option value="80">80%+ match</option>
+        </select>
+        {hasActiveFilters && <button type="button" className="button button-secondary" onClick={clearFilters}>Clear filters</button>}
+      </div>
+    </section>
+
+    <section className="job-grid dashboard-jobs-grid">
+      {state.loading && <div className="route-state loading-panel"><div className="skeleton-card" /><div className="skeleton-card" /><div className="skeleton-card" /></div>}
+      {!state.loading && state.error && <div className="data-error">{state.error}</div>}
+      {!state.loading && !state.error && !filteredJobs.length && (
+        <div className="empty-state">
+          <h3>No opportunities match these filters.</h3>
+          <p>Try clearing the current filters or update your skill data to unlock more job matches.</p>
+          <button type="button" className="button button-primary" onClick={clearFilters}>Clear filters</button>
+        </div>
+      )}
+      {filteredJobs.map((job) => <article key={job.id} className="job-card"><div className="job-header-row"><div><h3>{job.title}</h3><p>{job.company_name}</p></div><div className="job-match-badge"><strong>{job.match}%</strong><small>{job.matchLabel}</small></div></div><div className="job-location">{job.location} · {job.employment_type || "Employment type not listed"} · {job.salary_range || "Salary not listed"}</div><p className="job-description">{job.description || "No description provided."}</p><div className="job-skills">{job.job_skills?.map((item) => <span key={item.skill_id}>{item.skills?.name}</span>)}</div><div className="job-match-summary"><span>Matched: {job.matchedSkills.length}</span><span>Needs improvement: {job.missingSkills.length}</span></div><div className="job-card-actions"><Link to={`/jobs/${job.id}`} className="button button-secondary">View details</Link><Link to={`/jobs/${job.id}`} className="button button-primary">{appliedIds.has(job.id) ? "Already Applied" : "Apply"}</Link></div></article>)}
+    </section>
   </PlatformLayout>;
 }
 

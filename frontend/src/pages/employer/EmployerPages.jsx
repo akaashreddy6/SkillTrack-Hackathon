@@ -140,7 +140,22 @@ export function EmployerJobDetails({ edit = false }) {
 
 export function EmployerCandidates() {
   const { data, loading, error } = useEmployerData();
-  return <EmployerState loading={loading} error={error}><EmployerShell><PageHeader eyebrow="TALENT PIPELINE" title="Candidates" description="Review candidates who applied to your employer-owned jobs." />{data.applications.length ? <section className="panel panel-table"><AppTable headers={["Candidate", "Applied job", "Match", "Matching skills", "Missing skills", "Status", "Applied", "Action"]} rows={data.applications.map((item) => <tr key={item.id}><td><strong>{item.profiles?.full_name || "Candidate"}</strong><small>{item.profiles?.email || ""}</small></td><td>{item.jobs?.title}</td><td>{item.match?.match ?? 0}%</td><td>{item.match?.matchedSkills?.map((skill) => skill.skills?.name).join(", ") || "None"}</td><td>{item.match?.missingSkills?.map((skill) => skill.skills?.name).join(", ") || "None"}</td><td><StatusBadge>{item.status}</StatusBadge></td><td>{new Date(item.applied_at).toLocaleDateString()}</td><td><Link className="table-action" to={`/employer/candidates/${item.user_id}`}>View Candidate</Link></td></tr>)} /></section> : <div className="empty-state">No candidates yet. Publish a job to start receiving applications.</div>}</EmployerShell></EmployerState>;
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [matchFilter, setMatchFilter] = useState("All");
+
+  const filteredApplications = (data.applications || []).filter((item) => {
+    const searchText = `${item.profiles?.full_name || ""} ${item.jobs?.title || ""} ${item.match?.matchedSkills?.map((skill) => skill.skills?.name).join(" ") || ""}`.toLowerCase();
+    const matchesSearch = !search || searchText.includes(search.trim().toLowerCase());
+    const matchesStatus = statusFilter === "All" || item.status === statusFilter;
+    const matchesMatch = matchFilter === "All" || Number(item.match?.match || 0) >= Number(matchFilter);
+    return matchesSearch && matchesStatus && matchesMatch;
+  });
+
+  const hasActiveFilters = Boolean(search || statusFilter !== "All" || matchFilter !== "All");
+  const clearFilters = () => { setSearch(""); setStatusFilter("All"); setMatchFilter("All"); };
+
+  return <EmployerState loading={loading} error={error}><EmployerShell><PageHeader eyebrow="TALENT PIPELINE" title="Candidates" description="Review candidates who applied to your employer-owned jobs." /><div className="filter-toolbar compact"><label className="search-field" aria-label="Search candidates"><span className="search-field-icon">⌕</span><input type="search" placeholder="Search candidate or role" value={search} onChange={(event) => setSearch(event.target.value)} /></label><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}><option value="All">All stages</option>{statuses.map((status) => <option key={status} value={status}>{status}</option>)}</select><select value={matchFilter} onChange={(event) => setMatchFilter(event.target.value)}><option value="All">All match scores</option><option value="60">60%+ match</option><option value="75">75%+ match</option><option value="85">85%+ match</option></select>{hasActiveFilters && <button type="button" className="button button-secondary" onClick={clearFilters}>Clear filters</button>}</div>{filteredApplications.length ? <section className="panel panel-table"><AppTable headers={["Candidate", "Applied job", "Match", "Matching skills", "Missing skills", "Status", "Applied", "Action"]} rows={filteredApplications.map((item) => <tr key={item.id}><td><strong>{item.profiles?.full_name || "Candidate"}</strong><small>{item.profiles?.email || ""}</small></td><td>{item.jobs?.title}</td><td>{item.match?.match ?? 0}%</td><td>{item.match?.matchedSkills?.map((skill) => skill.skills?.name).join(", ") || "None"}</td><td>{item.match?.missingSkills?.map((skill) => skill.skills?.name).join(", ") || "None"}</td><td><StatusBadge>{item.status}</StatusBadge></td><td>{new Date(item.applied_at).toLocaleDateString()}</td><td><Link className="table-action" to={`/employer/candidates/${item.user_id}`}>View Candidate</Link></td></tr>)} /></section> : <div className="empty-state"><h3>No candidates match these filters.</h3><p>Try clearing filters or publish more roles to attract qualified applicants.</p><button type="button" className="button button-primary" onClick={clearFilters}>Clear filters</button></div>}</EmployerShell></EmployerState>;
 }
 
 export function EmployerCandidateDetails() {
@@ -149,9 +164,20 @@ export function EmployerCandidateDetails() {
 }
 
 export function EmployerApplications() {
-  const { data, loading, error } = useEmployerData(); const [filter, setFilter] = useState("All");
-  const applications = data?.applications.filter((item) => filter === "All" || item.status === filter) || [];
-  return <EmployerState loading={loading} error={error}><EmployerShell><PageHeader eyebrow="APPLICATION MANAGEMENT" title="Applications" description="Review applications and move candidates through your hiring process." /><div className="job-filters panel">{["All", ...statuses].map((status) => <button key={status} className={filter === status ? "button button-primary" : "button button-secondary"} onClick={() => setFilter(status)}>{status}</button>)}</div>{applications.length ? <section className="panel panel-table"><AppTable headers={["Candidate", "Job", "Match", "Applied", "Status", "Action"]} rows={applications.map((item) => <tr key={item.id}><td><strong>{item.profiles?.full_name || "Candidate"}</strong><small>{item.profiles?.email || ""}</small></td><td>{item.jobs?.title}</td><td>{item.match?.match ?? 0}%</td><td>{new Date(item.applied_at).toLocaleDateString()}</td><td><StatusBadge>{item.status}</StatusBadge></td><td><Link className="table-action" to={`/employer/applications/${item.id}`}>Review application</Link></td></tr>)} /></section> : <div className="empty-state">No {filter.toLowerCase()} applications yet.</div>}</EmployerShell></EmployerState>;
+  const { data, loading, error } = useEmployerData();
+  const [filter, setFilter] = useState("All");
+  const [jobFilter, setJobFilter] = useState("All");
+  const applications = (data?.applications || []).filter((item) => {
+    const matchesStatus = filter === "All" || item.status === filter;
+    const matchesJob = jobFilter === "All" || item.job_id === jobFilter;
+    return matchesStatus && matchesJob;
+  });
+  const jobOptions = [...new Set((data?.applications || []).map((application) => application.job_id).filter(Boolean))].map((jobId) => ({
+    value: jobId,
+    label: (data?.applications || []).find((application) => application.job_id === jobId)?.jobs?.title || "Role",
+  }));
+
+  return <EmployerState loading={loading} error={error}><EmployerShell><PageHeader eyebrow="APPLICATION MANAGEMENT" title="Applications" description="Review applications and move candidates through your hiring process." /><div className="job-filters panel"><div className="filter-toolbar compact">{["All", ...statuses].map((status) => <button key={status} className={filter === status ? "button button-primary" : "button button-secondary"} onClick={() => setFilter(status)}>{status}</button>)}<select value={jobFilter} onChange={(event) => setJobFilter(event.target.value)}><option value="All">All jobs</option>{jobOptions.map((job) => <option key={job.value} value={job.value}>{job.label}</option>)}</select>{(filter !== "All" || jobFilter !== "All") && <button type="button" className="button button-secondary" onClick={() => { setFilter("All"); setJobFilter("All"); }}>Clear filters</button>}</div></div>{applications.length ? <section className="panel panel-table"><AppTable headers={["Candidate", "Job", "Match", "Applied", "Status", "Action"]} rows={applications.map((item) => <tr key={item.id}><td><strong>{item.profiles?.full_name || "Candidate"}</strong><small>{item.profiles?.email || ""}</small></td><td>{item.jobs?.title}</td><td>{item.match?.match ?? 0}%</td><td>{new Date(item.applied_at).toLocaleDateString()}</td><td><StatusBadge>{item.status}</StatusBadge></td><td><Link className="table-action" to={`/employer/applications/${item.id}`}>Review application</Link></td></tr>)} /></section> : <div className="empty-state"><h3>No applications match these filters.</h3><p>Try clearing filters or publish a new job to create a fresh pipeline.</p><button type="button" className="button button-primary" onClick={() => { setFilter("All"); setJobFilter("All"); }}>Clear filters</button></div>}</EmployerShell></EmployerState>;
 }
 
 function ApplicationTimeline({ status }) {

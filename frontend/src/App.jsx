@@ -18,6 +18,7 @@ import { AdminDashboard, AdminApplications, AdminJobs, AdminSkills, AdminUsers, 
 import { EmployerApplicationDetails, EmployerApplications, EmployerCandidateDetails, EmployerCandidates, EmployerDashboard, EmployerJobDetails, EmployerJobs, EmployerProfile, CreateJob } from "./pages/employer/EmployerPages";
 import { useAuth } from "./context/AuthContext";
 import { getDashboardData, getJobs } from "./services/skilltrackService";
+import GlobalAICopilot from "./components/GlobalAICopilot";
 import "./App.css";
 
 function Home() {
@@ -58,6 +59,7 @@ function Home() {
 function App() {
   return (
     <BrowserRouter>
+      <GlobalAICopilot />
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />

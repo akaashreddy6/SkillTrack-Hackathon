@@ -1,5 +1,13 @@
 {
-  "dependencies": {
-    "react-router-dom": "^7.18.2"
+  "name": "skilltrack-ai-backend",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.js",
+    "server": "node server.js",
+    "client": "npm --prefix frontend run dev -- --host 0.0.0.0",
+    "start": "node server.js",
+    "build": "npm --prefix frontend run build",
+    "lint": "npm --prefix frontend run lint"
   }
 }

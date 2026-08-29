@@ -118,54 +118,49 @@ export function AuthProvider({ children }) {
       );
     }
 
-    /*
-     * Only allow the two normal registration roles.
-     * Admin should never be selectable during normal signup.
-     */
     const selectedRole = String(role || "").toLowerCase();
 
     if (!["student", "employer"].includes(selectedRole)) {
       throw new Error("Choose either a Student or Employer account type.");
     }
 
-    const { data, error } =
-      await supabase.auth.signUp({
-        email,
-        password,
-
-        options: {
-          data: {
-            full_name: fullName,
-            role: selectedRole,
-          },
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+          role: selectedRole,
         },
-      });
+      },
+    });
 
     if (error) throw error;
 
-    /*
-     * If email confirmation is disabled and a session
-     * is created immediately, update the profile now.
-     */
-    if (data.user && data.session) {
-      const { data: updatedProfile, error: profileError } =
-        await supabase
-          .from("profiles")
-          .update({
+    const normalizedUser = data?.user || null;
+
+    if (normalizedUser) {
+      const { data: updatedProfile, error: profileError } = await supabase
+        .from("profiles")
+        .upsert(
+          {
+            id: normalizedUser.id,
             full_name: fullName,
+            email,
             role: selectedRole,
             updated_at: new Date().toISOString(),
-          })
-          .eq("id", data.user.id)
-          .select()
-          .single();
+          },
+          { onConflict: "id" }
+        )
+        .select()
+        .single();
 
       if (profileError) {
         throw profileError;
       }
 
-      setUser(data.user);
-      setProfile(updatedProfile);
+      setUser(normalizedUser);
+      setProfile(updatedProfile || null);
     }
 
     return data;

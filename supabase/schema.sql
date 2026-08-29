@@ -94,8 +94,7 @@ create trigger profiles_completion before insert or update on public.profiles fo
 create or replace function public.handle_new_user() returns trigger language plpgsql security definer set search_path = public as $$
 begin
   insert into public.profiles (id, full_name, email, role)
-  values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', ''), new.email,
-    case when coalesce(new.raw_user_meta_data ->> 'role', 'student') = 'employer' then 'employer' else 'student' end)
+  values (new.id, coalesce(new.raw_user_meta_data ->> 'full_name', ''), new.email, coalesce(new.raw_user_meta_data ->> 'role', 'student'))
   on conflict (id) do nothing;
   exception when others then
     raise warning 'Unable to create profile for auth user %: %', new.id, sqlerrm;
@@ -145,12 +144,12 @@ create policy answers_own_insert on public.assessment_answers for insert with ch
 create policy answers_admin_all on public.assessment_answers for all using (public.is_admin()) with check (public.is_admin());
 create policy resources_authenticated_read on public.learning_resources for select using (auth.uid() is not null);
 create policy resources_admin_write on public.learning_resources for all using (public.is_admin()) with check (public.is_admin());
-create policy jobs_active_read on public.jobs for select using (status = 'Active' and auth.uid() is not null or employer_id = auth.uid() or public.is_admin() or exists (select 1 from public.applications a where a.job_id = id and a.user_id = auth.uid()));
+create policy jobs_active_read on public.jobs for select using (status = 'Active' and auth.uid() is not null or employer_id = auth.uid() or public.is_admin());
 create policy jobs_employer_write on public.jobs for insert with check (employer_id = auth.uid() and public.is_employer());
-create policy jobs_owner_update on public.jobs for update using ((employer_id = auth.uid() and public.is_employer()) or public.is_admin()) with check ((employer_id = auth.uid() and public.is_employer()) or public.is_admin());
-create policy jobs_owner_delete on public.jobs for delete using ((employer_id = auth.uid() and public.is_employer()) or public.is_admin());
+create policy jobs_owner_update on public.jobs for update using (employer_id = auth.uid() or public.is_admin()) with check (employer_id = auth.uid() or public.is_admin());
+create policy jobs_owner_delete on public.jobs for delete using (employer_id = auth.uid() or public.is_admin());
 create policy job_skills_authenticated_read on public.job_skills for select using (auth.uid() is not null);
-create policy job_skills_owner_write on public.job_skills for all using (exists (select 1 from public.jobs j where j.id = job_id and ((j.employer_id = auth.uid() and public.is_employer()) or public.is_admin()))) with check (exists (select 1 from public.jobs j where j.id = job_id and ((j.employer_id = auth.uid() and public.is_employer()) or public.is_admin())));
+create policy job_skills_owner_write on public.job_skills for all using (exists (select 1 from public.jobs j where j.id = job_id and (j.employer_id = auth.uid() or public.is_admin()))) with check (exists (select 1 from public.jobs j where j.id = job_id and (j.employer_id = auth.uid() or public.is_admin())));
 create policy applications_own_or_employer_read on public.applications for select using (user_id = auth.uid() or exists (select 1 from public.jobs j where j.id = job_id and j.employer_id = auth.uid()) or public.is_admin());
 create policy applications_own_insert on public.applications for insert with check (user_id = auth.uid());
 create policy applications_employer_update on public.applications for update using (exists (select 1 from public.jobs j where j.id = job_id and j.employer_id = auth.uid()) or public.is_admin()) with check (exists (select 1 from public.jobs j where j.id = job_id and j.employer_id = auth.uid()) or public.is_admin());

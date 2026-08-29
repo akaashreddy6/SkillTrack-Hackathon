@@ -6,11 +6,12 @@ security definer
 set search_path = public
 as $$
 begin
-  insert into public.profiles (id, full_name, email)
+  insert into public.profiles (id, full_name, email, role)
   values (
     new.id,
     coalesce(new.raw_user_meta_data ->> 'full_name', ''),
-    new.email
+    new.email,
+    coalesce(new.raw_user_meta_data ->> 'role', 'student')
   )
   on conflict (id) do nothing;
   return new;

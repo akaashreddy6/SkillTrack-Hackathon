@@ -1,15 +1,18 @@
+import { useEffect, useState } from "react";
 import { DashboardHeader } from "../components/DashboardLayout";
-
-const skillCatalog = [
-  { name: "HTML & Semantics", level: "Advanced", progress: 92, focus: "Accessibility + structure" },
-  { name: "CSS Layout", level: "Advanced", progress: 88, focus: "Responsive design systems" },
-  { name: "JavaScript", level: "Intermediate", progress: 68, focus: "DOM + async logic" },
-  { name: "React", level: "Intermediate", progress: 76, focus: "Component architecture" },
-  { name: "Java", level: "Foundational", progress: 54, focus: "OOP and classes" },
-  { name: "Problem Solving", level: "Strong", progress: 80, focus: "Logical reasoning" },
-];
+import { useAuth } from "../context/AuthContext";
+import { getDashboardData } from "../services/skilltrackService";
 
 function Skills() {
+  const { user } = useAuth();
+  const [state, setState] = useState({ loading: true, error: "", progress: [] });
+  useEffect(() => {
+    let active = true;
+    getDashboardData(user.id)
+      .then((data) => { if (active) setState({ loading: false, error: "", progress: data.progress || [] }); })
+      .catch((error) => { if (active) setState({ loading: false, error: error.message || "Unable to load your skills.", progress: [] }); });
+    return () => { active = false; };
+  }, [user.id]);
   return (
     <div className="dashboard-page">
       <DashboardHeader />
@@ -23,26 +26,31 @@ function Skills() {
         </section>
 
         <section className="skills-grid">
-          {skillCatalog.map((skill) => (
-            <article key={skill.name} className="info-card">
+          {state.loading && <div className="route-state">Loading your skill progress...</div>}
+          {state.error && <div className="data-error">{state.error}</div>}
+          {!state.loading && !state.error && !state.progress.length && <div className="empty-state">Complete an assessment to start tracking your skills.</div>}
+          {state.progress.map((item) => {
+            const score = Number(item.current_score) || 0;
+            const level = score < 40 ? "Critical Gap" : score < 60 ? "Needs Improvement" : score < 80 ? "Good" : "Strong";
+            return <article key={item.id} className="info-card">
               <div className="info-card-top">
                 <div>
-                  <h3>{skill.name}</h3>
-                  <p>{skill.level}</p>
+                  <h3>{item.skills?.name || "Skill"}</h3>
+                  <p>{level}</p>
                 </div>
-                <span className="skill-score">{skill.progress}%</span>
+                <span className="skill-score">{score}%</span>
               </div>
 
               <div className="progress-track">
-                <div className="progress-fill" style={{ width: `${skill.progress}%` }} />
+                <div className="progress-fill" style={{ width: `${score}%` }} />
               </div>
 
               <div className="info-meta">
-                <span>Focus area</span>
-                <strong>{skill.focus}</strong>
+                <span>Target score</span>
+                <strong>{item.target_score}% · Gap {item.gap_percentage}%</strong>
               </div>
-            </article>
-          ))}
+            </article>;
+          })}
         </section>
       </main>
     </div>

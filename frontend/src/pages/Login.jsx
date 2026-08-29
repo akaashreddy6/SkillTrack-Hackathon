@@ -53,7 +53,7 @@ function PasswordField({ label, name, value, placeholder, onChange, error, showP
 function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-const { signIn, refreshProfile, isConfigured } = useAuth();
+  const { signIn, refreshProfile, isConfigured } = useAuth();
 
   const [formData, setFormData] = useState({
     email: "",
@@ -63,7 +63,8 @@ const { signIn, refreshProfile, isConfigured } = useAuth();
 
   const [errors, setErrors] = useState({});
   const [showPassword, setShowPassword] = useState(false);
-  const [submitMessage, setSubmitMessage] = useState("");
+  const [submitMessage, setSubmitMessage] = useState({ text: "", type: "" });
+  const [submitting, setSubmitting] = useState(false);
 
   const handleChange = (event) => {
     const { name, value, type, checked } = event.target;
@@ -71,7 +72,7 @@ const { signIn, refreshProfile, isConfigured } = useAuth();
 
     setFormData((prev) => ({ ...prev, [name]: fieldValue }));
     setErrors((prev) => ({ ...prev, [name]: "" }));
-    setSubmitMessage("");
+    setSubmitMessage({ text: "", type: "" });
   };
 
   const validate = () => {
@@ -99,89 +100,123 @@ const { signIn, refreshProfile, isConfigured } = useAuth();
 
     if (Object.keys(nextErrors).length > 0) {
       setErrors(nextErrors);
-      setSubmitMessage("");
+      setSubmitMessage({ text: "", type: "" });
       return;
     }
 
     setErrors({});
-    setSubmitMessage("");
+    setSubmitting(true);
+    setSubmitMessage({ text: "", type: "" });
+
     try {
-     const { user } = await signIn(formData.email.trim(), formData.password);
+      const { user } = await signIn(formData.email.trim(), formData.password);
 
-if (user) {
-  const userProfile = await refreshProfile(user);
+      if (user) {
+        const userProfile = await refreshProfile(user);
 
-  if (userProfile?.role === "employer") {
-    navigate("/employer", { replace: true });
-  } else if (userProfile?.role === "admin") {
-    navigate("/admin", { replace: true });
-  } else {
-    navigate(location.state?.from || "/dashboard", { replace: true });
-  }
-}
+        if (userProfile?.role === "employer") {
+          navigate("/employer", { replace: true });
+        } else if (userProfile?.role === "admin") {
+          navigate("/admin", { replace: true });
+        } else {
+          navigate(location.state?.from || "/dashboard", { replace: true });
+        }
+      }
     } catch (error) {
-      setSubmitMessage(error.message || "Unable to sign in. Please try again.");
+      setSubmitMessage({
+        text: error.message || "Unable to sign in. Please try again.",
+        type: "error",
+      });
+    } finally {
+      setSubmitting(false);
     }
   };
 
   return (
     <div className="auth-page">
-      <div className="auth-card">
-        <div className="auth-logo">
-          Skill<span>Track</span>
-        </div>
+      <div className="auth-shell">
+        <aside className="auth-visual" aria-label="SkillTrack overview panel">
+          <div className="auth-brand">
+            Skill<span>Track</span>
+          </div>
+          <p className="auth-kicker">TURN YOUR SKILLS INTO YOUR CAREER</p>
+          <h1>Learn smarter. Understand your skills. Become career-ready.</h1>
+          <p className="auth-visual-copy">
+            SkillTrack connects learning, skill intelligence, AI career guidance and real job opportunities in one clear platform.
+          </p>
+          <ul className="auth-feature-list">
+            <li>AI Career Copilot</li>
+            <li>Skill Intelligence</li>
+            <li>Personalized Learning</li>
+            <li>Smart Job Matching</li>
+          </ul>
+        </aside>
 
-        <h1>Welcome back</h1>
-        <p className="auth-subtitle">Sign in to continue your career journey.</p>
-
-        {submitMessage && <div className={isConfigured ? "auth-error" : "auth-success"}>{submitMessage}</div>}
-
-        <form onSubmit={handleSubmit} noValidate>
-          <FormField
-            label="Email"
-            type="email"
-            name="email"
-            value={formData.email}
-            placeholder="Enter your email"
-            onChange={handleChange}
-            error={errors.email}
-          />
-
-          <PasswordField
-            label="Password"
-            name="password"
-            value={formData.password}
-            placeholder="Enter your password"
-            onChange={handleChange}
-            error={errors.password}
-            showPassword={showPassword}
-            setShowPassword={setShowPassword}
-          />
-
-          <div className="auth-meta">
-            <label className="checkbox-row">
-              <input
-                type="checkbox"
-                name="rememberMe"
-                checked={formData.rememberMe}
-                onChange={handleChange}
-              />
-              <span>Remember me</span>
-            </label>
-
-            <a href="#forgot-password" className="auth-link">
-              Forgot password?
-            </a>
+        <section className="auth-card auth-card-panel">
+          <div className="auth-logo">
+            Skill<span>Track</span>
           </div>
 
-          <button type="submit" className="auth-button">
-            Sign In
-          </button>
-        </form>
+          <h1>Welcome back</h1>
+          <p className="auth-subtitle">Sign in to continue your career journey.</p>
 
-        <p className="auth-footer">
-          Don&apos;t have an account? <Link to="/register">Create an account</Link>
-        </p>
+          {submitMessage.text && (
+            <div className={submitMessage.type === "error" ? "auth-error" : "auth-success"}>{submitMessage.text}</div>
+          )}
+
+          {!isConfigured && (
+            <div className="auth-warning">
+              Supabase is not configured for this environment yet. Add your project settings to enable authentication.
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} noValidate>
+            <FormField
+              label="Email"
+              type="email"
+              name="email"
+              value={formData.email}
+              placeholder="Enter your email"
+              onChange={handleChange}
+              error={errors.email}
+            />
+
+            <PasswordField
+              label="Password"
+              name="password"
+              value={formData.password}
+              placeholder="Enter your password"
+              onChange={handleChange}
+              error={errors.password}
+              showPassword={showPassword}
+              setShowPassword={setShowPassword}
+            />
+
+            <div className="auth-meta">
+              <label className="checkbox-row">
+                <input
+                  type="checkbox"
+                  name="rememberMe"
+                  checked={formData.rememberMe}
+                  onChange={handleChange}
+                />
+                <span>Remember me</span>
+              </label>
+
+              <a href="#forgot-password" className="auth-link">
+                Forgot password?
+              </a>
+            </div>
+
+            <button type="submit" className="auth-button" disabled={submitting}>
+              {submitting ? "Signing in..." : "Sign In"}
+            </button>
+          </form>
+
+          <p className="auth-footer">
+            Don&apos;t have an account? <Link to="/register">Create an account</Link>
+          </p>
+        </section>
       </div>
     </div>
   );

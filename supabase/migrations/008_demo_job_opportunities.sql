@@ -8,10 +8,7 @@ declare
   v_skill_score integer;
   v_skill_id bigint;
 begin
-  select ep.user_id into v_employer_id from public.employer_profiles ep limit 1;
-  if v_employer_id is null then
-    select p.id into v_employer_id from public.profiles p where p.role = 'employer' limit 1;
-  end if;
+  select p.id into v_employer_id from public.profiles p where p.role = 'employer' limit 1;
   if v_employer_id is null then return; end if;
 
   for job_record in select * from (values

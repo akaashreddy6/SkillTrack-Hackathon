@@ -49,9 +49,9 @@ from public.skills s cross join (values
 ) r(title, description, level, minutes, url)
 where not exists (select 1 from public.learning_resources lr where lr.skill_id = s.id and lr.title = r.title);
 
--- Eight fictional jobs are inserted only when an employer profile exists. Create an employer account first.
+-- Eight fictional jobs are inserted only when an employer account exists. Create an employer account first.
 do $$ declare employer_id uuid; job_id uuid; skill_id bigint; begin
- select ep.user_id into employer_id from public.employer_profiles ep limit 1;
+ select p.id into employer_id from public.profiles p where p.role = 'employer' limit 1;
  if employer_id is not null then
    for job_id in select gen_random_uuid() from generate_series(1, 8) loop
      insert into public.jobs (id, employer_id, title, company_name, location, description, experience_required, employment_type, salary_range, status)

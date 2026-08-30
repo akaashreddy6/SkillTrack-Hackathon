@@ -52,6 +52,7 @@ function useEmployerData() {
   const { user } = useAuth();
   const [state, setState] = useState({ data: emptyEmployerData, loading: true, error: "" });
   const load = async () => {
+    if (!user?.id) return;
     try {
       setState({ data: emptyEmployerData, loading: true, error: "" });
       setState({ data: normalizeEmployerData(await getEmployerData(user.id)), loading: false, error: "" });
@@ -59,7 +60,7 @@ function useEmployerData() {
       setState({ data: emptyEmployerData, loading: false, error: error.message || "Unable to load employer data." });
     }
   };
-  useEffect(() => { load(); }, [user.id]);
+  useEffect(() => { if (user?.id) load(); }, [user?.id]);
   return { ...state, reload: load };
 }
 

@@ -27,9 +27,26 @@ export function AuthProvider({ children }) {
       throw error;
     }
 
-    setProfile(data || null);
+    const userMetaRole = currentUser.user_metadata?.role;
+    const effectiveRole = data?.role || userMetaRole || "student";
 
-    return data || null;
+    const resolvedProfile = data
+      ? {
+          ...data,
+          role: effectiveRole,
+        }
+      : userMetaRole
+      ? {
+          id: currentUser.id,
+          email: currentUser.email,
+          full_name: currentUser.user_metadata?.full_name || "",
+          role: effectiveRole,
+        }
+      : null;
+
+    setProfile(resolvedProfile);
+
+    return resolvedProfile;
   };
 
   useEffect(() => {
@@ -147,6 +164,20 @@ export function AuthProvider({ children }) {
     setUser(normalizedUser);
 
     if (data.session) {
+      if (selectedRole === "employer") {
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({
+            role: "employer",
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", normalizedUser.id);
+
+        if (updateError) {
+          console.error("Error setting employer profile role:", updateError);
+        }
+      }
+
       await refreshProfile(normalizedUser);
     }
   }

@@ -82,6 +82,12 @@ export default function GlobalAICopilot() {
   );
 
   useEffect(() => {
+    const handleOpen = () => setIsOpen(true);
+    window.addEventListener("skilltrack:open-ai-copilot", handleOpen);
+    return () => window.removeEventListener("skilltrack:open-ai-copilot", handleOpen);
+  }, []);
+
+  useEffect(() => {
     if (!user?.id || publicRoutes.has(location.pathname)) return undefined;
 
     let mounted = true;

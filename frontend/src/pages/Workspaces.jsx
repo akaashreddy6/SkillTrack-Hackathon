@@ -319,8 +319,8 @@ export function EmployerDashboard() {
       );
 
   useEffect(() => {
-    load();
-  }, [user.id]);
+    if (user?.id) load();
+  }, [user?.id]);
 
   const createJob = async (event) => {
     event.preventDefault();

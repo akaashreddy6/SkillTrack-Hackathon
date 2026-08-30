@@ -15,7 +15,11 @@ function AdminState({ children }) {
   const state = useAdminData();
   if (state.loading) return <PlatformLayout role="admin"><div className="route-state">Loading platform analytics...</div></PlatformLayout>;
   if (state.error) return <PlatformLayout role="admin"><div className="data-error">{state.error}</div></PlatformLayout>;
-  return <PlatformLayout role="admin">{children(state.data)}</PlatformLayout>;
+  const data = {
+    ...state.data,
+    profiles: state.data?.allProfiles || [],
+  };
+  return <PlatformLayout role="admin">{children(data)}</PlatformLayout>;
 }
 
 function StatusCounts({ data }) {

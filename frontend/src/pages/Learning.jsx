@@ -141,9 +141,19 @@ function Learning() {
         action={
           <Link
             className="primary-dashboard-button"
-            to={plan.skill?.assessmentId ? `/assessments/${plan.skill.assessmentId}` : "/assessments"}
+            to={
+              plan.skill?.assessmentId
+                ? `/assessments/${plan.skill.assessmentId}${
+                    activeTopic ? `?topic=${encodeURIComponent(activeTopic.topic)}` : ""
+                  }`
+                : "/assessments"
+            }
           >
-            {plan.skill?.assessmentId ? "Retake Assessment" : "Take an Assessment"}
+            {plan.skill?.assessmentId
+              ? activeTopic
+                ? `Test ${activeTopic.topic} →`
+                : "Retake Assessment"
+              : "Take an Assessment"}
           </Link>
         }
       />

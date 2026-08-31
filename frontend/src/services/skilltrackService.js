@@ -681,8 +681,23 @@ export const applyToJob = async (
   return data;
 };
 
+export const getSkillTopics = async (skillId) => {
+  const client = requireClient();
+  let query = client
+    .from("learning_topics")
+    .select("id, skill_id, topic, phase")
+    .order("topic");
+
+  if (skillId) {
+    query = query.eq("skill_id", skillId);
+  }
+
+  return read(query);
+};
+
 export const getAssessment = async (
-  assessmentId
+  assessmentId,
+  topic
 ) => {
   const client = requireClient();
 
@@ -692,7 +707,7 @@ export const getAssessment = async (
   } = await client
     .from("assessments")
     .select(
-      "*, skills(name, target_score)"
+      "*, skills(id, name, target_score)"
     )
     .eq("id", assessmentId)
     .maybeSingle();
@@ -703,15 +718,18 @@ export const getAssessment = async (
     throw new Error("Assessment not found.");
   }
 
-  const questions = await read(
-    client
-      .from("questions")
-      .select(
-        "id, question_text, option_a, option_b, option_c, option_d, topic, difficulty"
-      )
-      .eq("skill_id", assessment.skill_id)
-      .order("id")
-  );
+  let query = client
+    .from("questions")
+    .select(
+      "id, question_text, option_a, option_b, option_c, option_d, topic, difficulty, skill_id"
+    )
+    .eq("skill_id", assessment.skill_id);
+
+  if (topic && topic !== "All") {
+    query = query.eq("topic", topic.trim());
+  }
+
+  const questions = await read(query.order("id"));
 
   return {
     assessment,
@@ -1247,13 +1265,38 @@ export const submitAssessment = async ({
   answers,
   startedAt,
 }) => {
+  const client = requireClient();
+
+  const { data: assessment } = await client
+    .from("assessments")
+    .select("skill_id")
+    .eq("id", assessmentId)
+    .maybeSingle();
+
+  const payloadAnswers = { ...answers };
+
+  if (assessment?.skill_id) {
+    const allQuestions = await read(
+      client
+        .from("questions")
+        .select("id")
+        .eq("skill_id", assessment.skill_id)
+    );
+
+    for (const q of allQuestions) {
+      if (payloadAnswers[q.id] === undefined) {
+        payloadAnswers[q.id] = "";
+      }
+    }
+  }
+
   const { data, error } =
-    await requireClient().rpc(
+    await client.rpc(
       "submit_assessment",
       {
         p_assessment_id:
           assessmentId,
-        p_answers: answers,
+        p_answers: payloadAnswers,
         p_started_at: startedAt,
       }
     );

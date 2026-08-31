@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useLocation, useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { getAssessment, getLatestAttempt, submitAssessment } from "../services/skilltrackService";
 import { PageHeader, PlatformLayout, ProgressBar } from "../components/Platform";
@@ -151,6 +151,7 @@ function ResultView() {
 export default function AssessmentFlow() {
   const { id } = useParams();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { user } = useAuth();
   const [assessment, setAssessment] = useState(null);
@@ -162,19 +163,44 @@ export default function AssessmentFlow() {
   const [state, setState] = useState({ loading: true, error: "", submitting: false });
   const isResult = location.pathname.endsWith("/results");
 
+  const selectedTopic = (searchParams.get("topic") || location.state?.topic || "").trim();
+
   useEffect(() => {
     if (isResult || !user?.id) return undefined;
-    getAssessment(id)
+    setState((prev) => ({ ...prev, loading: true, error: "" }));
+
+    getAssessment(id, selectedTopic)
       .then((data) => {
         setAssessment(data.assessment);
-        setQuestions(data.questions);
+
+        // Strict question validation: must match skill and topic (if topic specified)
+        const validQuestions = (data.questions || []).filter((q) => {
+          const skillMatch = !data.assessment?.skill_id || q.skill_id === data.assessment.skill_id;
+          const topicMatch =
+            !selectedTopic || selectedTopic === "All" || q.topic === selectedTopic;
+
+          if (!skillMatch) {
+            console.warn(
+              `[AssessmentFlow] Question ${q.id} omitted: skill mismatch (${q.skill_id} !== ${data.assessment?.skill_id})`
+            );
+          }
+          if (!topicMatch) {
+            console.warn(
+              `[AssessmentFlow] Question ${q.id} omitted: topic mismatch (${q.topic} !== ${selectedTopic})`
+            );
+          }
+
+          return skillMatch && topicMatch;
+        });
+
+        setQuestions(validQuestions);
       })
       .catch((error) =>
         setState({ loading: false, error: error.message || "Unable to load this assessment." })
       )
       .finally(() => setState((previous) => ({ ...previous, loading: false })));
     return undefined;
-  }, [id, isResult, user?.id]);
+  }, [id, isResult, user?.id, selectedTopic]);
 
   useEffect(() => {
     if (!startedAt || state.submitting) return undefined;
@@ -224,7 +250,25 @@ export default function AssessmentFlow() {
   if (!assessment || !questions.length) {
     return (
       <PlatformLayout>
-        <div className="empty-state">This assessment has no questions configured yet.</div>
+        <div className="empty-state panel" style={{ padding: "40px 24px", textAlign: "center" }}>
+          <h3 style={{ fontSize: "18px", color: "#FFFFFF", marginBottom: "8px" }}>
+            {selectedTopic && selectedTopic !== "All"
+              ? "Not enough questions available for this topic."
+              : "This assessment has no questions configured yet."}
+          </h3>
+          <p style={{ color: "var(--text-muted)", marginBottom: "20px", fontSize: "14px" }}>
+            {selectedTopic && selectedTopic !== "All"
+              ? `There are currently no diagnostic questions configured specifically for "${selectedTopic}". You can choose another topic or take the comprehensive skill test.`
+              : "Please check back later or select a different assessment domain."}
+          </p>
+          <button
+            type="button"
+            className="button button-primary"
+            onClick={() => navigate("/assessments")}
+          >
+            ← Back to Assessments
+          </button>
+        </div>
       </PlatformLayout>
     );
   }
@@ -272,12 +316,29 @@ export default function AssessmentFlow() {
   const minutes = String(Math.floor(secondsLeft / 60)).padStart(2, "0");
   const seconds = String(secondsLeft % 60).padStart(2, "0");
 
+  const optionChoices = [
+    { key: "A", text: question.option_a },
+    { key: "B", text: question.option_b },
+    { key: "C", text: question.option_c },
+    { key: "D", text: question.option_d },
+  ];
+
+  const assessmentHeaderTitle = startedAt
+    ? `${assessment.title}${selectedTopic && selectedTopic !== "All" ? ` · ${selectedTopic}` : ""}`
+    : `Assess your ${assessment.skills?.name || "Skills"}${
+        selectedTopic && selectedTopic !== "All" ? ` (${selectedTopic})` : ""
+      }`;
+
   return (
     <PlatformLayout>
       <PageHeader
         eyebrow="DIAGNOSTIC TEST"
-        title={startedAt ? assessment.title : `Assess your ${assessment.skills?.name || "Skills"}`}
-        description={assessment.description || "A timed diagnostic assessment to measure your capability."}
+        title={assessmentHeaderTitle}
+        description={
+          selectedTopic && selectedTopic !== "All"
+            ? `Targeted diagnostic assessment focusing exclusively on ${selectedTopic}.`
+            : assessment.description || "A timed diagnostic assessment to measure your capability."
+        }
       />
 
       {!startedAt ? (
@@ -287,10 +348,20 @@ export default function AssessmentFlow() {
           </div>
           <div>
             <span className="level-badge" style={{ marginBottom: "8px" }}>
-              {questions.length} Questions · {assessment.duration_minutes} Minutes
+              {questions.length} Question{questions.length === 1 ? "" : "s"} · {assessment.duration_minutes} Minutes
             </span>
-            <h2>Measure What You Know Today</h2>
-            <p>{assessment.description}</p>
+            <h2>
+              {selectedTopic && selectedTopic !== "All"
+                ? `Targeted Assessment: ${selectedTopic}`
+                : "Measure What You Know Today"}
+            </h2>
+            <p>
+              {selectedTopic && selectedTopic !== "All"
+                ? `This diagnostic evaluates your mastery of ${selectedTopic} in ${
+                    assessment.skills?.name || "this skill"
+                  }. Answer all questions accurately.`
+                : assessment.description}
+            </p>
             <button type="button" className="button button-primary" onClick={start} style={{ marginTop: "16px" }}>
               Start Assessment →
             </button>
@@ -336,22 +407,26 @@ export default function AssessmentFlow() {
               <span className="question-category">{question.topic || "Core Topic"}</span>
               <h2>{question.question_text}</h2>
 
-              <div className="options">
-                {[question.option_a, question.option_b, question.option_c, question.option_d].map(
-                  (option, index) => (
+              <div className="assessment-options">
+                {optionChoices.map((choice, index) => {
+                  const isSelected = answers[question.id] === index;
+                  const optionLabel = choice.text ?? `Option ${choice.key} (Unavailable)`;
+
+                  return (
                     <button
-                      key={option}
+                      key={choice.key}
                       type="button"
-                      className={answers[question.id] === index ? "selected" : ""}
+                      className={`assessment-option ${isSelected ? "selected" : ""}`}
                       onClick={() =>
                         setAnswers((previous) => ({ ...previous, [question.id]: index }))
                       }
+                      aria-pressed={isSelected}
                     >
-                      <span>{optionKeys[index]}</span>
-                      {option}
+                      <span className="assessment-option-key">{choice.key}</span>
+                      <span className="assessment-option-text">{optionLabel}</span>
                     </button>
-                  )
-                )}
+                  );
+                })}
               </div>
 
               {state.error && <div className="data-error" style={{ marginTop: "16px" }}>{state.error}</div>}
@@ -392,4 +467,5 @@ export default function AssessmentFlow() {
       )}
     </PlatformLayout>
   );
-}
+}
+

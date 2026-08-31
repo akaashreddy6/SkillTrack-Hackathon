@@ -2,20 +2,31 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { AppTable, PageHeader, PlatformLayout, StatusBadge } from "../components/Platform";
 import { useAuth } from "../context/AuthContext";
-import { getAssessmentAttempts, getAssessments } from "../services/skilltrackService";
+import { getAssessmentAttempts, getAssessments, getSkillTopics } from "../services/skilltrackService";
 
 function Assessments() {
   const { user } = useAuth();
   const [catalog, setCatalog] = useState([]);
   const [attempts, setAttempts] = useState([]);
+  const [topicsBySkill, setTopicsBySkill] = useState({});
+  const [selectedTopics, setSelectedTopics] = useState({});
   const [state, setState] = useState({ loading: true, error: "" });
 
   useEffect(() => {
     if (!user?.id) return undefined;
-    Promise.all([getAssessments(), getAssessmentAttempts(user.id)])
-      .then(([available, history]) => {
+    Promise.all([getAssessments(), getAssessmentAttempts(user.id), getSkillTopics()])
+      .then(([available, history, allTopics]) => {
         setCatalog(available);
         setAttempts(history);
+
+        const grouped = {};
+        for (const t of allTopics || []) {
+          if (!grouped[t.skill_id]) grouped[t.skill_id] = [];
+          if (!grouped[t.skill_id].includes(t.topic)) {
+            grouped[t.skill_id].push(t.topic);
+          }
+        }
+        setTopicsBySkill(grouped);
       })
       .catch((error) =>
         setState({ loading: false, error: error.message || "Unable to load assessments." })
@@ -23,6 +34,10 @@ function Assessments() {
       .finally(() => setState((previous) => ({ ...previous, loading: false })));
     return undefined;
   }, [user?.id]);
+
+  const handleTopicChange = (assessmentId, topic) => {
+    setSelectedTopics((prev) => ({ ...prev, [assessmentId]: topic }));
+  };
 
   return (
     <PlatformLayout role="student">
@@ -50,34 +65,65 @@ function Assessments() {
           )}
 
           <div className="assessment-cards-grid">
-            {catalog.map((assessment) => (
-              <article key={assessment.id} className="assessment-card panel">
-                <div className="assessment-card-header">
-                  <div>
-                    <span className="assessment-domain-tag">
-                      {assessment.skills?.name || "Skill Domain"}
-                    </span>
-                    <h3 className="assessment-title">{assessment.title}</h3>
+            {catalog.map((assessment) => {
+              const skillTopics = topicsBySkill[assessment.skill_id] || [];
+              const selectedTopic = selectedTopics[assessment.id] || "All";
+              const targetUrl = `/assessments/${assessment.id}${
+                selectedTopic && selectedTopic !== "All"
+                  ? `?topic=${encodeURIComponent(selectedTopic)}`
+                  : ""
+              }`;
+
+              return (
+                <article key={assessment.id} className="assessment-card panel">
+                  <div className="assessment-card-header">
+                    <div>
+                      <span className="assessment-domain-tag">
+                        {assessment.skills?.name || "Skill Domain"}
+                      </span>
+                      <h3 className="assessment-title">{assessment.title}</h3>
+                    </div>
+                    <span className="assessment-mark-icon">📝</span>
                   </div>
-                  <span className="assessment-mark-icon">📝</span>
-                </div>
 
-                <p className="assessment-description">
-                  {assessment.description || "Comprehensive capability and diagnostic evaluation."}
-                </p>
+                  <p className="assessment-description">
+                    {assessment.description || "Comprehensive capability and diagnostic evaluation."}
+                  </p>
 
-                <div className="assessment-meta-pills">
-                  <span className="meta-pill">⏱ {assessment.duration_minutes} min</span>
-                  <span className="meta-pill">📋 {assessment.question_count} questions</span>
-                </div>
+                  <div className="assessment-meta-pills">
+                    <span className="meta-pill">⏱ {assessment.duration_minutes} min</span>
+                    <span className="meta-pill">
+                      📋 {selectedTopic !== "All" ? "Topic Test" : `${assessment.question_count} questions`}
+                    </span>
+                  </div>
 
-                <div className="assessment-action-row">
-                  <Link className="button button-primary full-width" to={`/assessments/${assessment.id}`}>
-                    Start Assessment →
-                  </Link>
-                </div>
-              </article>
-            ))}
+                  {skillTopics.length > 0 && (
+                    <div className="assessment-topic-select-wrap">
+                      <label htmlFor={`topic-select-${assessment.id}`}>Focus Topic</label>
+                      <select
+                        id={`topic-select-${assessment.id}`}
+                        value={selectedTopic}
+                        onChange={(e) => handleTopicChange(assessment.id, e.target.value)}
+                        className="topic-dropdown"
+                      >
+                        <option value="All">All Topics (Comprehensive)</option>
+                        {skillTopics.map((topicName) => (
+                          <option key={topicName} value={topicName}>
+                            {topicName}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  <div className="assessment-action-row">
+                    <Link className="button button-primary full-width" to={targetUrl}>
+                      Start Assessment {selectedTopic !== "All" ? `(${selectedTopic})` : ""} →
+                    </Link>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </section>
       )}

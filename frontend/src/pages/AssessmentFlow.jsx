@@ -148,6 +148,78 @@ function ResultView() {
   );
 }
 
+function normalizeTopic(val) {
+  return String(val || "").trim().toLowerCase();
+}
+
+function validateAssessmentQuestion(q, assessmentSkillId, selectedTopic) {
+  if (!q || typeof q !== "object") {
+    console.warn("[AssessmentFlow] Rejected null or invalid question object:", q);
+    return false;
+  }
+
+  // 1. Validate skill_id matches assessment
+  if (assessmentSkillId && q.skill_id && q.skill_id !== assessmentSkillId) {
+    console.warn(
+      `[AssessmentFlow] Question ${q.id} rejected: skill mismatch (${q.skill_id} !== ${assessmentSkillId})`
+    );
+    return false;
+  }
+
+  // 2. Validate topic matches selected topic (if topic specified and not "All")
+  if (
+    selectedTopic &&
+    normalizeTopic(selectedTopic) !== "all" &&
+    !normalizeTopic(q.topic).startsWith(normalizeTopic(selectedTopic))
+  ) {
+    console.warn(
+      `[AssessmentFlow] Question ${q.id} rejected: topic mismatch ("${q.topic}" !== "${selectedTopic}")`
+    );
+    return false;
+  }
+
+  // 3. Validate options A/B/C/D are present and non-empty strings
+  const a = typeof q.option_a === "string" ? q.option_a.trim() : "";
+  const b = typeof q.option_b === "string" ? q.option_b.trim() : "";
+  const c = typeof q.option_c === "string" ? q.option_c.trim() : "";
+  const d = typeof q.option_d === "string" ? q.option_d.trim() : "";
+
+  if (!a || !b || !c || !d) {
+    console.warn(`[AssessmentFlow] Question ${q.id} rejected: missing options A/B/C/D`, {
+      option_a: a,
+      option_b: b,
+      option_c: c,
+      option_d: d,
+    });
+    return false;
+  }
+
+  // 4. Validate no two options are identical (case-insensitive)
+  const normalizedOptions = [a, b, c, d].map((opt) => opt.toLowerCase());
+  const uniqueOptions = new Set(normalizedOptions);
+  if (uniqueOptions.size !== 4) {
+    console.warn(
+      `[AssessmentFlow] Question ${q.id} rejected: duplicate options found among A/B/C/D`,
+      { a, b, c, d }
+    );
+    return false;
+  }
+
+  // 5. If correct_option is provided in payload, validate it is 'A', 'B', 'C', or 'D'
+  if (q.correct_option !== undefined && q.correct_option !== null && String(q.correct_option).trim() !== "") {
+    const validOptionKeys = ["A", "B", "C", "D"];
+    const correctOpt = String(q.correct_option).trim().toUpperCase();
+    if (!validOptionKeys.includes(correctOpt)) {
+      console.warn(
+        `[AssessmentFlow] Question ${q.id} rejected: invalid correct_option "${q.correct_option}"`
+      );
+      return false;
+    }
+  }
+
+  return true;
+}
+
 export default function AssessmentFlow() {
   const { id } = useParams();
   const location = useLocation();
@@ -173,25 +245,10 @@ export default function AssessmentFlow() {
       .then((data) => {
         setAssessment(data.assessment);
 
-        // Strict question validation: must match skill and topic (if topic specified)
-        const validQuestions = (data.questions || []).filter((q) => {
-          const skillMatch = !data.assessment?.skill_id || q.skill_id === data.assessment.skill_id;
-          const topicMatch =
-            !selectedTopic || selectedTopic === "All" || q.topic === selectedTopic;
-
-          if (!skillMatch) {
-            console.warn(
-              `[AssessmentFlow] Question ${q.id} omitted: skill mismatch (${q.skill_id} !== ${data.assessment?.skill_id})`
-            );
-          }
-          if (!topicMatch) {
-            console.warn(
-              `[AssessmentFlow] Question ${q.id} omitted: topic mismatch (${q.topic} !== ${selectedTopic})`
-            );
-          }
-
-          return skillMatch && topicMatch;
-        });
+        // Strict question validation: options presence, option uniqueness, valid answer key, skill/topic match
+        const validQuestions = (data.questions || []).filter((q) =>
+          validateAssessmentQuestion(q, data.assessment?.skill_id, selectedTopic)
+        );
 
         setQuestions(validQuestions);
       })

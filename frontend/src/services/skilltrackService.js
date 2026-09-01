@@ -725,15 +725,34 @@ export const getAssessment = async (
     )
     .eq("skill_id", assessment.skill_id);
 
-  if (topic && topic !== "All") {
-    query = query.eq("topic", topic.trim());
+  if (topic && topic.trim().toLowerCase() !== "all") {
+    query = query.ilike("topic", `${topic.trim()}%`);
+    const questions = await read(query.order("id"));
+    return {
+      assessment,
+      questions: questions.slice(0, 10),
+    };
   }
 
-  const questions = await read(query.order("id"));
+  // All topics: select 1 representative question per parent topic for a balanced 10-question test
+  const allQuestions = await read(query.order("id"));
+  const byParentTopic = new Map();
+
+  for (const q of allQuestions) {
+    const parent = q.topic.split(":")[0].trim();
+    if (!byParentTopic.has(parent)) {
+      byParentTopic.set(parent, q);
+    }
+  }
+
+  let selectedQuestions = Array.from(byParentTopic.values());
+  if (selectedQuestions.length < 10) {
+    selectedQuestions = allQuestions.slice(0, 10);
+  }
 
   return {
     assessment,
-    questions,
+    questions: selectedQuestions.slice(0, 10),
   };
 };
 
@@ -1266,42 +1285,122 @@ export const submitAssessment = async ({
   startedAt,
 }) => {
   const client = requireClient();
+  const {
+    data: { user },
+  } = await client.auth.getUser();
+  if (!user) throw new Error("User not authenticated.");
 
-  const { data: assessment } = await client
+  const { data: assessment, error: assessErr } = await client
     .from("assessments")
-    .select("skill_id")
+    .select("id, skill_id, title, skills(id, name, target_score)")
     .eq("id", assessmentId)
     .maybeSingle();
 
-  const payloadAnswers = { ...answers };
+  if (assessErr || !assessment) throw new Error("Assessment not found.");
 
-  if (assessment?.skill_id) {
-    const allQuestions = await read(
-      client
-        .from("questions")
-        .select("id")
-        .eq("skill_id", assessment.skill_id)
+  const questionIds = Object.keys(answers || {});
+  if (questionIds.length === 0) throw new Error("No answers provided.");
+
+  // Fetch correct options for answered questions from database
+  const answeredQuestions = await read(
+    client
+      .from("questions")
+      .select("id, correct_option, skill_id, topic")
+      .in("id", questionIds)
+  );
+
+  let correctCount = 0;
+  const totalQuestions = questionIds.length;
+  const answerRecords = [];
+
+  for (const q of answeredQuestions) {
+    const selected = answers[q.id];
+    const isCorrect = Boolean(
+      selected && selected.toUpperCase() === q.correct_option?.toUpperCase()
     );
+    if (isCorrect) correctCount++;
+    answerRecords.push({
+      question_id: q.id,
+      selected_option: selected || null,
+      is_correct: isCorrect,
+    });
+  }
 
-    for (const q of allQuestions) {
-      if (payloadAnswers[q.id] === undefined) {
-        payloadAnswers[q.id] = "";
-      }
+  const percentage =
+    totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
+  const performanceLevel =
+    percentage >= 80
+      ? "Excellent"
+      : percentage >= 60
+      ? "Good"
+      : percentage >= 40
+      ? "Needs Improvement"
+      : "Critical Gap";
+
+  // 1. Create assessment attempt
+  const { data: attempt, error: attemptErr } = await client
+    .from("assessment_attempts")
+    .insert({
+      user_id: user.id,
+      assessment_id: assessment.id,
+      score: percentage,
+      percentage,
+      total_questions: totalQuestions,
+      correct_answers: correctCount,
+      performance_level: performanceLevel,
+      started_at: startedAt || new Date().toISOString(),
+      completed_at: new Date().toISOString(),
+    })
+    .select()
+    .single();
+
+  if (attemptErr) throw attemptErr;
+
+  // 2. Insert answer records
+  if (answerRecords.length > 0) {
+    const answersToInsert = answerRecords.map((ar) => ({
+      ...ar,
+      attempt_id: attempt.id,
+    }));
+    const { error: ansErr } = await client
+      .from("assessment_answers")
+      .insert(answersToInsert);
+    if (ansErr) console.warn("Failed to record individual answers:", ansErr);
+  }
+
+  // 3. Update skill progress
+  if (assessment.skill_id) {
+    const targetScore = assessment.skills?.target_score || 80;
+    const gapPercentage = Math.max(0, targetScore - percentage);
+
+    const { data: existingProgress } = await client
+      .from("skill_progress")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("skill_id", assessment.skill_id)
+      .maybeSingle();
+
+    if (existingProgress) {
+      await client
+        .from("skill_progress")
+        .update({
+          current_score: percentage,
+          target_score: targetScore,
+          gap_percentage: gapPercentage,
+          last_assessed_at: new Date().toISOString(),
+        })
+        .eq("id", existingProgress.id);
+    } else {
+      await client.from("skill_progress").insert({
+        user_id: user.id,
+        skill_id: assessment.skill_id,
+        current_score: percentage,
+        target_score: targetScore,
+        gap_percentage: gapPercentage,
+        last_assessed_at: new Date().toISOString(),
+      });
     }
   }
 
-  const { data, error } =
-    await client.rpc(
-      "submit_assessment",
-      {
-        p_assessment_id:
-          assessmentId,
-        p_answers: payloadAnswers,
-        p_started_at: startedAt,
-      }
-    );
-
-  if (error) throw error;
-
-  return data;
+  return attempt;
 };
